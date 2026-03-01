@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from '@/components/ui/sonner'
-import { Library as LibraryIcon, Download, Wrench, FileText, BookOpen, Languages, Menu, Sun, Moon, PanelLeftClose, X } from 'lucide-react'
+import { Library as LibraryIcon, Download, Wrench, FileText, BookOpen, Languages, Sparkles, Menu, Sun, Moon, PanelLeftClose, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Library from '@/pages/Library'
 import Collect from '@/pages/Collect'
@@ -9,6 +9,7 @@ import PromptBuilder from '@/pages/PromptBuilder'
 import Analyzer from '@/pages/Analyzer'
 import Dictionary from '@/pages/Dictionary'
 import Translator from '@/pages/Translator'
+import Scorer from '@/pages/Scorer'
 
 const NAV = [
   { path: '/library', label: '素材库', icon: LibraryIcon },
@@ -17,6 +18,7 @@ const NAV = [
   { path: '/analyzer', label: '文案分析', icon: FileText },
   { path: '/dictionary', label: '提示词词典', icon: BookOpen },
   { path: '/translator', label: '中英互译', icon: Languages },
+  { path: '/scorer', label: '提示词评分', icon: Sparkles },
 ]
 
 export default function App() {
@@ -103,6 +105,7 @@ export default function App() {
               <Route path="/analyzer" element={<Analyzer />} />
               <Route path="/dictionary" element={<Dictionary />} />
               <Route path="/translator" element={<Translator />} />
+              <Route path="/scorer" element={<Scorer />} />
             </Routes>
           </main>
         </div>
