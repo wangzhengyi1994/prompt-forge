@@ -131,7 +131,7 @@ export default function PromptBuilder() {
   }
 
   return (
-    <div className="max-w-3xl space-y-4 w-full">
+    <div className="max-w-3xl space-y-4 w-full mx-auto">
       <div className="flex items-center gap-2 flex-wrap">
         <h2 className="text-lg font-semibold">提示词组装器</h2>
         <DropdownMenu>
