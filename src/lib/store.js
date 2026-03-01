@@ -159,3 +159,47 @@ export function deleteFromLibrary(id) {
   saveLibrary(lib)
   return lib
 }
+
+export function exportLibrary() {
+  const lib = getLibrary()
+  const data = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), items: lib }, null, 2)
+  const blob = new Blob([data], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `promptforge-backup-${new Date().toISOString().slice(0, 10)}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+  return lib.length
+}
+
+export function importLibrary(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result)
+        const items = parsed.items || parsed
+        if (!Array.isArray(items)) { reject(new Error('格式错误')); return }
+        const existing = getLibrary()
+        const existingIds = new Set(existing.map(i => i.id))
+        let added = 0
+        for (const item of items) {
+          if (!item.title || !item.prompt) continue
+          if (existingIds.has(item.id)) continue
+          existing.push({ ...item, id: item.id || Date.now().toString() + Math.random().toString(36).slice(2) })
+          added++
+        }
+        saveLibrary(existing)
+        resolve({ total: items.length, added, skipped: items.length - added })
+      } catch (err) { reject(err) }
+    }
+    reader.onerror = () => reject(new Error('读取失败'))
+    reader.readAsText(file)
+  })
+}
+
+export function clearLibrary() {
+  localStorage.removeItem(STORAGE_KEY)
+  return getLibrary()
+}

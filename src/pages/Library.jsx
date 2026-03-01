@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getLibrary, deleteFromLibrary, saveLibrary } from '@/lib/store'
+import { getLibrary, deleteFromLibrary, saveLibrary, exportLibrary, importLibrary } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { Grid3X3, List, Search, Trash2, Copy, Check, Pencil, X, Tag, Layers, FileText, LayoutTemplate, Plus } from 'lucide-react'
+import { Grid3X3, List, Search, Trash2, Copy, Check, Pencil, X, Tag, Layers, FileText, LayoutTemplate, Plus, Download, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
 const TABS = [
@@ -218,8 +218,27 @@ export default function Library() {
   const [search, setSearch] = useState('')
   const [view, setView] = useState('grid')
   const [selected, setSelected] = useState(null)
+  const fileInputRef = useState(null)
 
   useEffect(() => { setItems(getLibrary()) }, [])
+
+  const handleExport = () => {
+    const count = exportLibrary()
+    toast.success(`已导出 ${count} 条素材`)
+  }
+
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const result = await importLibrary(file)
+      setItems(getLibrary())
+      toast.success(`导入完成: 新增 ${result.added} 条, 跳过 ${result.skipped} 条重复`)
+    } catch (err) {
+      toast.error(`导入失败: ${err.message}`)
+    }
+    e.target.value = ''
+  }
 
   const filtered = items.filter(i => {
     const q = search.toLowerCase()
@@ -247,6 +266,14 @@ export default function Library() {
           <Input placeholder="搜索标题、标签、来源..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
         <div className="flex gap-1 ml-auto">
+          <input type="file" accept=".json" className="hidden" id="import-file" onChange={handleImport} />
+          <Button variant="ghost" size="sm" onClick={() => document.getElementById('import-file').click()} title="导入素材">
+            <Upload className="h-4 w-4 mr-1" /><span className="hidden sm:inline">导入</span>
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleExport} title="导出素材">
+            <Download className="h-4 w-4 mr-1" /><span className="hidden sm:inline">导出</span>
+          </Button>
+          <div className="w-px bg-border mx-1" />
           <Button variant={view === 'grid' ? 'secondary' : 'ghost'} size="icon" onClick={() => setView('grid')}><Grid3X3 className="h-4 w-4" /></Button>
           <Button variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setView('list')}><List className="h-4 w-4" /></Button>
         </div>
