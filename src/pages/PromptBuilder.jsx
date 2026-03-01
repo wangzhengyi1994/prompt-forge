@@ -59,7 +59,7 @@ export default function PromptBuilder() {
   const libTemplates = getLibrary().map(i => ({ name: i.title, prompt: i.template }))
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="max-w-3xl space-y-4 w-full">
       <div className="flex items-center gap-2">
         <h2 className="text-lg font-semibold">提示词组装器</h2>
         <DropdownMenu>
@@ -75,7 +75,7 @@ export default function PromptBuilder() {
       </div>
 
       <Card>
-        <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           {Object.entries(OPTIONS).map(([key, opts]) => (
             <div key={key}>
               <label className="text-xs text-muted-foreground mb-1 block">{key}</label>
