@@ -4,7 +4,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
-import { Copy, Sparkles, AlertTriangle, CheckCircle, Info } from 'lucide-react'
+import { Copy, Sparkles, AlertTriangle, CheckCircle, Info, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 const DIMENSIONS = [
@@ -111,6 +111,44 @@ export default function Scorer() {
 
   const suggestions = results ? results.filter(r => r.score < r.weight).map(r => r.tip) : []
 
+  const optimizePrompt = () => {
+    if (!input.trim()) { toast.error('请先输入提示词'); return }
+    const t = input.toLowerCase()
+    const additions = []
+
+    // Check missing dimensions and add reasonable defaults
+    const hasSubject = ['图标','icon','logo','场景','角色','物体','主体','subject','一个','一只','一朵'].some(w => t.includes(w))
+    if (!hasSubject) additions.push('3D图标')
+
+    const hasStyle = ['风格','style','极简','科技','梦幻','可爱','复古','赛博','扁平','写实','minimalist','realistic','fantasy','cyberpunk','cartoon','abstract','现代','简约'].some(w => t.includes(w))
+    if (!hasStyle) additions.push('现代简约风格')
+
+    const hasMaterial = ['材质','质感','磨砂','玻璃','金属','透明','塑料','陶瓷','木质','布料','glass','metal','matte','glossy','frosted','crystal','水晶'].some(w => t.includes(w))
+    if (!hasMaterial) additions.push('磨砂质感')
+
+    const hasView = ['视角','透视','等轴','俯视','仰视','平视','正面','侧面','2.5d','isometric','perspective','top view','front view'].some(w => t.includes(w))
+    if (!hasView) additions.push('2.5D视角')
+
+    const hasColor = ['配色','色调','颜色','蓝','红','绿','紫','渐变','单色','多彩','饱和','color','gradient','monochrome','pastel','vibrant','粉','暖','冷'].some(w => t.includes(w))
+    if (!hasColor) additions.push('蓝白渐变配色')
+
+    const hasTech = ['8k','16k','4k','分辨率','resolution','c4d','blender','oc','octane','vray','渲染','render','unreal','redshift'].some(w => t.includes(w))
+    if (!hasTech) additions.push('Blender渲染，8K分辨率')
+
+    const hasConstraint = ['无','不要','禁止','去除','干净','简洁','no ','without','clean','simple','不含','避免'].some(w => t.includes(w))
+    if (!hasConstraint) additions.push('干净背景，无底座，无冗余装饰')
+
+    if (additions.length === 0) {
+      toast.info('提示词已经很完整了')
+      return
+    }
+
+    const optimized = input.trim().replace(/[。.]+$/, '') + '。' + additions.join('，') + '。'
+    setInput(optimized)
+    setScored(false)
+    toast.success(`已补充 ${additions.length} 个维度`)
+  }
+
   const handleScore = () => {
     if (!input.trim()) { toast.error('请输入提示词'); return }
     setScored(true)
@@ -142,6 +180,10 @@ export default function Scorer() {
               <Sparkles className="w-4 h-4 mr-2" />
               开始评分
             </Button>
+            <Button variant="outline" onClick={optimizePrompt}>
+              <Wand2 className="w-4 h-4 mr-2" />
+              一键优化
+            </Button>
             <Button variant="outline" onClick={() => { setInput(''); setScored(false) }}>清空</Button>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -163,9 +205,19 @@ export default function Scorer() {
                 <div className={`w-20 h-20 rounded-2xl ${grade.color} flex items-center justify-center text-white text-3xl font-bold shadow-lg`}>
                   {grade.label}
                 </div>
-                <div>
+                <div className="flex-1">
                   <div className="text-4xl font-bold">{totalScore}<span className="text-lg text-muted-foreground">/100</span></div>
                   <p className="text-muted-foreground mt-1">{grade.text}</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(input); toast.success('已复制') }}>
+                    <Copy className="w-3 h-3 mr-1" />复制
+                  </Button>
+                  {totalScore < 90 && (
+                    <Button size="sm" onClick={optimizePrompt}>
+                      <Wand2 className="w-3 h-3 mr-1" />一键优化
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>

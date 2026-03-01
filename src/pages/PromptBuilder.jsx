@@ -5,9 +5,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Copy, ChevronDown, RotateCcw, Sparkles, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Copy, ChevronDown, RotateCcw, Sparkles, CheckCircle, AlertTriangle, BookmarkPlus, Check } from 'lucide-react'
 import { toast } from 'sonner'
-import { getLibrary } from '@/lib/store'
+import { addToLibrary } from '@/lib/store'
 
 const OPTIONS = {
   材质: ['磨砂质感', '毛玻璃', '几何玻璃', '透明材质', '塑料质感', '金属质感', '水晶质感', '陶瓷质感'],
@@ -74,9 +74,41 @@ export default function PromptBuilder() {
   const passedCount = dimResults.filter(d => d.passed).length
   const scoreColor = passedCount >= 6 ? 'text-emerald-500' : passedCount >= 4 ? 'text-yellow-500' : 'text-red-500'
 
+  const [copied, setCopied] = useState(false)
+
   const copyPrompt = () => {
     navigator.clipboard.writeText(prompt)
+    setCopied(true)
     toast.success('已复制')
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  const saveToLibrary = () => {
+    const styleName = sel.风格 || ''
+    const matName = sel.材质 || ''
+    const title = subject.trim()
+      ? `${styleName}${matName} - ${subject.trim()}`
+      : `${styleName}${matName}图标`
+    const tags = Object.values(sel).filter(v => v && v !== '自定义' && v !== '不指定')
+    const gradients = [
+      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+      'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+      'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+      'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+      'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
+    ]
+    const thumbnail = gradients[Math.floor(Math.random() * gradients.length)]
+    addToLibrary({
+      title,
+      source: '组装器生成',
+      tags,
+      prompt,
+      structure: Object.entries(sel).filter(([,v]) => v).map(([k,v]) => `${k}: ${v}`).join(' | '),
+      template: prompt.replace(subject.trim() || '___', '{主体内容}'),
+      thumbnail,
+    })
+    toast.success('已保存到素材库')
   }
 
   return (
@@ -152,7 +184,13 @@ export default function PromptBuilder() {
           </div>
 
           <div className="flex gap-2">
-            <Button onClick={copyPrompt}><Copy className="h-4 w-4 mr-1" />复制提示词</Button>
+            <Button onClick={copyPrompt}>
+              {copied ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
+              {copied ? '已复制' : '复制提示词'}
+            </Button>
+            <Button variant="outline" onClick={saveToLibrary}>
+              <BookmarkPlus className="h-4 w-4 mr-1" />收藏到素材库
+            </Button>
           </div>
         </CardContent>
       </Card>
