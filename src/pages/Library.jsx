@@ -1,13 +1,217 @@
 import { useState, useEffect } from 'react'
-import { getLibrary, deleteFromLibrary } from '@/lib/store'
+import { getLibrary, deleteFromLibrary, saveLibrary } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
-import { Grid3X3, List, Search, Trash2, Copy } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
+import { Grid3X3, List, Search, Trash2, Copy, Check, Pencil, X, Tag, Layers, FileText, LayoutTemplate, Plus } from 'lucide-react'
 import { toast } from 'sonner'
+
+const TABS = [
+  { key: 'prompt', label: '提示词', icon: FileText },
+  { key: 'structure', label: '结构拆解', icon: Layers },
+  { key: 'template', label: '模板', icon: LayoutTemplate },
+]
+
+function DetailDialog({ item, onClose, onDelete, onUpdate }) {
+  const [tab, setTab] = useState('prompt')
+  const [copied, setCopied] = useState(null)
+  const [editingTags, setEditingTags] = useState(false)
+  const [tagInput, setTagInput] = useState('')
+  const [tags, setTags] = useState(item?.tags || [])
+  const [editingPrompt, setEditingPrompt] = useState(false)
+  const [promptDraft, setPromptDraft] = useState('')
+
+  useEffect(() => {
+    if (item) {
+      setTags(item.tags || [])
+      setEditingTags(false)
+      setEditingPrompt(false)
+      setTab('prompt')
+    }
+  }, [item?.id])
+
+  if (!item) return null
+
+  const copyText = (text, key) => {
+    navigator.clipboard.writeText(text)
+    setCopied(key)
+    toast.success('已复制到剪贴板')
+    setTimeout(() => setCopied(null), 1500)
+  }
+
+  const addTag = () => {
+    const t = tagInput.trim()
+    if (!t || tags.includes(t)) return
+    const newTags = [...tags, t]
+    setTags(newTags)
+    setTagInput('')
+    onUpdate({ ...item, tags: newTags })
+  }
+
+  const removeTag = (t) => {
+    const newTags = tags.filter(x => x !== t)
+    setTags(newTags)
+    onUpdate({ ...item, tags: newTags })
+  }
+
+  const savePrompt = () => {
+    onUpdate({ ...item, prompt: promptDraft })
+    setEditingPrompt(false)
+    toast.success('提示词已更新')
+  }
+
+  const tabContent = {
+    prompt: (
+      <div className="space-y-3">
+        {editingPrompt ? (
+          <>
+            <Textarea value={promptDraft} onChange={e => setPromptDraft(e.target.value)} rows={5} className="text-sm" />
+            <div className="flex gap-2">
+              <Button size="sm" onClick={savePrompt}>保存</Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditingPrompt(false)}>取消</Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="text-sm bg-muted p-4 rounded-lg whitespace-pre-wrap leading-relaxed select-text">{item.prompt}</div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => copyText(item.prompt, 'prompt')}>
+                {copied === 'prompt' ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                {copied === 'prompt' ? '已复制' : '复制'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { setPromptDraft(item.prompt); setEditingPrompt(true) }}>
+                <Pencil className="h-3 w-3 mr-1" />编辑
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    ),
+    structure: (
+      <div className="space-y-3">
+        <div className="grid gap-2">
+          {item.structure?.split(' | ').map((s, i) => {
+            const [k, v] = s.split(': ')
+            return (
+              <div key={i} className="flex items-center gap-3 text-sm">
+                <span className="text-muted-foreground w-16 shrink-0 text-right">{k}</span>
+                <span className="bg-muted px-3 py-1.5 rounded-md flex-1">{v}</span>
+              </div>
+            )
+          })}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => copyText(item.structure, 'structure')}>
+          {copied === 'structure' ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+          {copied === 'structure' ? '已复制' : '复制结构'}
+        </Button>
+      </div>
+    ),
+    template: (
+      <div className="space-y-3">
+        <div className="text-sm bg-muted p-4 rounded-lg font-mono leading-relaxed select-text">
+          {item.template?.split(/(\{[^}]+\})/).map((part, i) =>
+            part.startsWith('{') ? (
+              <span key={i} className="text-blue-400 bg-blue-500/10 px-1 rounded">{part}</span>
+            ) : (
+              <span key={i}>{part}</span>
+            )
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => copyText(item.template, 'template')}>
+          {copied === 'template' ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+          {copied === 'template' ? '已复制' : '复制模板'}
+        </Button>
+      </div>
+    ),
+  }
+
+  return (
+    <Dialog open={!!item} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto p-0">
+        {/* Header with gradient */}
+        <div className="h-36 rounded-t-lg relative" style={{ background: item.thumbnail || 'linear-gradient(135deg, #667eea, #764ba2)' }}>
+          <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+          <div className="absolute bottom-4 left-6 right-6">
+            <DialogHeader>
+              <DialogTitle className="text-xl text-white drop-shadow-md">{item.title}</DialogTitle>
+            </DialogHeader>
+            <div className="flex items-center gap-2 mt-1 text-xs text-white/70">
+              <span>{item.source}</span>
+              <span>·</span>
+              <span>{item.date}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 pb-6 space-y-4">
+          {/* Tags */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+            {tags.map(t => (
+              <Badge key={t} variant="secondary" className="text-xs gap-1">
+                {t}
+                {editingTags && (
+                  <X className="h-3 w-3 cursor-pointer hover:text-destructive" onClick={() => removeTag(t)} />
+                )}
+              </Badge>
+            ))}
+            {editingTags ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  value={tagInput}
+                  onChange={e => setTagInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addTag()}
+                  placeholder="新标签"
+                  className="h-6 w-24 text-xs"
+                />
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={addTag}><Plus className="h-3 w-3" /></Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingTags(false)}><Check className="h-3 w-3" /></Button>
+              </div>
+            ) : (
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingTags(true)}>
+                <Pencil className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Tabs */}
+          <div className="flex gap-1 bg-muted p-1 rounded-lg">
+            {TABS.map(t => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  tab === t.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <t.icon className="h-3.5 w-3.5" />
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          {tabContent[tab]}
+
+          <Separator />
+
+          {/* Footer */}
+          <div className="flex justify-end">
+            <Button variant="destructive" size="sm" onClick={() => onDelete(item.id)}>
+              <Trash2 className="h-3 w-3 mr-1" />删除
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export default function Library() {
   const [items, setItems] = useState([])
@@ -28,9 +232,11 @@ export default function Library() {
     toast.success('已删除')
   }
 
-  const copyText = (text) => {
-    navigator.clipboard.writeText(text)
-    toast.success('已复制到剪贴板')
+  const handleUpdate = (updated) => {
+    const newItems = items.map(i => i.id === updated.id ? updated : i)
+    setItems(newItems)
+    setSelected(updated)
+    saveLibrary(newItems)
   }
 
   return (
@@ -49,14 +255,17 @@ export default function Library() {
       {view === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map(item => (
-            <Card key={item.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setSelected(item)}>
-              <div className="h-32 rounded-t-lg" style={{ background: item.thumbnail || 'linear-gradient(135deg, #667eea, #764ba2)' }} />
+            <Card key={item.id} className="cursor-pointer hover:border-primary/50 transition-colors group" onClick={() => setSelected(item)}>
+              <div className="h-32 rounded-t-lg relative overflow-hidden" style={{ background: item.thumbnail || 'linear-gradient(135deg, #667eea, #764ba2)' }}>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+              </div>
               <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm">{item.title}</CardTitle>
+                <CardTitle className="text-sm truncate">{item.title}</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0 space-y-2">
                 <div className="flex flex-wrap gap-1">
                   {item.tags?.slice(0, 3).map(t => <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>)}
+                  {item.tags?.length > 3 && <Badge variant="outline" className="text-xs">+{item.tags.length - 3}</Badge>}
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>{item.source}</span>
@@ -87,49 +296,12 @@ export default function Library() {
 
       {filtered.length === 0 && <div className="text-center text-muted-foreground py-12">暂无数据</div>}
 
-      <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
-          {selected && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{selected.title}</DialogTitle>
-              </DialogHeader>
-              <div className="h-40 rounded-lg my-2" style={{ background: selected.thumbnail }} />
-              <div className="flex flex-wrap gap-1 mb-3">
-                {selected.tags?.map(t => <Badge key={t} variant="secondary">{t}</Badge>)}
-              </div>
-              <Separator />
-              <div className="space-y-3 mt-3">
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">提示词</div>
-                  <div className="text-sm bg-muted p-3 rounded-md whitespace-pre-wrap">{selected.prompt}</div>
-                  <Button variant="ghost" size="sm" className="mt-1" onClick={() => copyText(selected.prompt)}>
-                    <Copy className="h-3 w-3 mr-1" />复制
-                  </Button>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">结构拆解</div>
-                  <div className="text-sm bg-muted p-3 rounded-md">{selected.structure}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">模板</div>
-                  <div className="text-sm bg-muted p-3 rounded-md font-mono text-xs">{selected.template}</div>
-                  <Button variant="ghost" size="sm" className="mt-1" onClick={() => copyText(selected.template)}>
-                    <Copy className="h-3 w-3 mr-1" />复制模板
-                  </Button>
-                </div>
-              </div>
-              <Separator className="my-3" />
-              <div className="flex justify-between">
-                <span className="text-xs text-muted-foreground">来源: {selected.source} · {selected.date}</span>
-                <Button variant="destructive" size="sm" onClick={() => handleDelete(selected.id)}>
-                  <Trash2 className="h-3 w-3 mr-1" />删除
-                </Button>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <DetailDialog
+        item={selected}
+        onClose={() => setSelected(null)}
+        onDelete={handleDelete}
+        onUpdate={handleUpdate}
+      />
     </div>
   )
 }
