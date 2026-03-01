@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Copy, ChevronDown, RotateCcw, Sparkles, CheckCircle, AlertTriangle, BookmarkPlus, Check } from 'lucide-react'
+import { Copy, ChevronDown, RotateCcw, Sparkles, CheckCircle, AlertTriangle, BookmarkPlus, Check, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { addToLibrary } from '@/lib/store'
 
@@ -50,22 +50,41 @@ export default function PromptBuilder() {
 
   const filledCount = Object.values(sel).filter(v => v && v !== '自定义' && v !== '不指定').length
 
-  const prompt = useMemo(() => {
-    const parts = []
-    if (sel.风格) parts.push(`${sel.风格}风格`)
-    if (sel.材质) parts.push(`${sel.材质}`)
-    parts.push('3D图标')
-    if (subject.trim()) parts.push(`，主体为${subject.trim()}`)
-    if (sel.视角) parts.push(`，${sel.视角}视角`)
-    if (sel.色调 && sel.色调 !== '自定义') parts.push(`，${sel.色调}配色`)
-    if (sel.背景 && sel.背景 !== '自定义') parts.push(`，${sel.背景}背景`)
-    if (sel.细节度) parts.push(`，${sel.细节度}`)
-    if (sel.渲染器 && sel.渲染器 !== '不指定') parts.push(`。${sel.渲染器}渲染`)
-    if (sel.分辨率) parts.push(`，${sel.分辨率}分辨率`)
-    parts.push('。干净背景，无底座，无冗余装饰。')
-    if (extraConstraint.trim()) parts.push(extraConstraint.trim())
-    return parts.join('')
+  // Color map for each dimension category
+  const DIM_COLORS = {
+    风格: 'text-purple-400 bg-purple-500/10',
+    材质: 'text-blue-400 bg-blue-500/10',
+    视角: 'text-green-400 bg-green-500/10',
+    色调: 'text-pink-400 bg-pink-500/10',
+    背景: 'text-cyan-400 bg-cyan-500/10',
+    细节度: 'text-yellow-400 bg-yellow-500/10',
+    渲染器: 'text-orange-400 bg-orange-500/10',
+    分辨率: 'text-red-400 bg-red-500/10',
+    主体: 'text-emerald-400 bg-emerald-500/10',
+    约束: 'text-slate-400 bg-slate-500/10',
+  }
+
+  // Build prompt as segments with dimension labels for highlighting
+  const promptSegments = useMemo(() => {
+    const segs = []
+    if (sel.风格) segs.push({ text: `${sel.风格}风格`, dim: '风格' })
+    if (sel.材质) segs.push({ text: sel.材质, dim: '材质' })
+    segs.push({ text: '3D图标', dim: null })
+    if (subject.trim()) segs.push({ text: `，主体为${subject.trim()}`, dim: '主体' })
+    if (sel.视角) segs.push({ text: `，${sel.视角}视角`, dim: '视角' })
+    if (sel.色调 && sel.色调 !== '自定义') segs.push({ text: `，${sel.色调}配色`, dim: '色调' })
+    if (sel.背景 && sel.背景 !== '自定义') segs.push({ text: `，${sel.背景}背景`, dim: '背景' })
+    if (sel.细节度) segs.push({ text: `，${sel.细节度}`, dim: '细节度' })
+    if (sel.渲染器 && sel.渲染器 !== '不指定') segs.push({ text: `。${sel.渲染器}渲染`, dim: '渲染器' })
+    if (sel.分辨率) segs.push({ text: `，${sel.分辨率}分辨率`, dim: '分辨率' })
+    segs.push({ text: '。干净背景，无底座，无冗余装饰。', dim: '约束' })
+    if (extraConstraint.trim()) segs.push({ text: extraConstraint.trim(), dim: '约束' })
+    return segs
   }, [sel, subject, extraConstraint])
+
+  const prompt = useMemo(() => promptSegments.map(s => s.text).join(''), [promptSegments])
+
+  const [highlightMode, setHighlightMode] = useState(true)
 
   const dimResults = useMemo(() => {
     return DIMENSIONS.map(d => ({ ...d, passed: d.check(prompt) }))
@@ -172,7 +191,27 @@ export default function PromptBuilder() {
           </div>
         </CardHeader>
         <CardContent className="p-4 pt-0 space-y-3">
-          <div className="bg-muted p-4 rounded-md text-sm whitespace-pre-wrap min-h-[60px] leading-relaxed">{prompt}</div>
+          <div className="bg-muted p-4 rounded-md text-sm whitespace-pre-wrap min-h-[60px] leading-relaxed">
+            {highlightMode ? promptSegments.map((seg, i) => (
+              seg.dim ? (
+                <span key={i} className={`${DIM_COLORS[seg.dim] || ''} px-0.5 rounded`} title={seg.dim}>{seg.text}</span>
+              ) : (
+                <span key={i}>{seg.text}</span>
+              )
+            )) : prompt}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" className="text-xs h-6" onClick={() => setHighlightMode(!highlightMode)}>
+              {highlightMode ? '关闭高亮' : '开启高亮'}
+            </Button>
+            {highlightMode && (
+              <div className="flex flex-wrap gap-1">
+                {Object.entries(DIM_COLORS).filter(([k]) => promptSegments.some(s => s.dim === k)).map(([k, cls]) => (
+                  <span key={k} className={`text-xs px-1.5 py-0.5 rounded ${cls}`}>{k}</span>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="flex flex-wrap gap-1.5">
             {dimResults.map(d => (
