@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from '@/components/ui/sonner'
-import { Library as LibraryIcon, Download, Wrench, FileText, BookOpen, Languages, Sparkles, Menu, Sun, Moon, PanelLeftClose, X } from 'lucide-react'
+import { Library as LibraryIcon, Download, Wrench, FileText, BookOpen, Languages, Sparkles, Dna, Menu, Sun, Moon, PanelLeftClose, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Library from '@/pages/Library'
 import Collect from '@/pages/Collect'
@@ -10,6 +10,7 @@ import Analyzer from '@/pages/Analyzer'
 import Dictionary from '@/pages/Dictionary'
 import Translator from '@/pages/Translator'
 import Scorer from '@/pages/Scorer'
+import StyleDNA from '@/pages/StyleDNA'
 
 const NAV = [
   { path: '/library', label: '素材库', icon: LibraryIcon },
@@ -19,6 +20,7 @@ const NAV = [
   { path: '/dictionary', label: '提示词词典', icon: BookOpen },
   { path: '/translator', label: '中英互译', icon: Languages },
   { path: '/scorer', label: '提示词评分', icon: Sparkles },
+  { path: '/style-dna', label: '风格DNA', icon: Dna },
 ]
 
 export default function App() {
@@ -106,6 +108,7 @@ export default function App() {
               <Route path="/dictionary" element={<Dictionary />} />
               <Route path="/translator" element={<Translator />} />
               <Route path="/scorer" element={<Scorer />} />
+              <Route path="/style-dna" element={<StyleDNA />} />
             </Routes>
           </main>
         </div>
