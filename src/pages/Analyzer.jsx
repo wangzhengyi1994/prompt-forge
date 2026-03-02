@@ -211,6 +211,9 @@ export default function Analyzer() {
   const [elementCount, setElementCount] = useState(2)
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [history, setHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('pico_analyze_history') || '[]') } catch { return [] }
+  })
   // batch
   const [batchInput, setBatchInput] = useState('')
   const [batchResults, setBatchResults] = useState([])
@@ -239,15 +242,26 @@ export default function Analyzer() {
       const elementsStr = ai.elements.join(' + ')
       const prompt = `3D图标，主体为${ai.subject || elementsStr}，包含${elementsStr}元素，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座，减少细节。`
 
-      setResult({
+      const newResult = {
         elements: ai.elements,
         reasons: [`AI分析: ${ai.reasoning}`],
         prompt,
-      })
+      }
+      setResult(newResult)
+      // 保存历史
+      const entry = { id: Date.now(), title: title.trim(), prompt, elements: ai.elements, time: new Date().toLocaleString('zh-CN') }
+      const newHistory = [entry, ...history].slice(0, 50)
+      setHistory(newHistory)
+      localStorage.setItem('pico_analyze_history', JSON.stringify(newHistory))
     } catch (e) {
       // AI 失败时 fallback 到本地分析
       console.warn('AI analyze failed, fallback:', e)
-      setResult(analyzeText(title, desc, primaryColor, accentColors, texture))
+      const fallback = analyzeText(title, desc, primaryColor, accentColors, texture)
+      setResult(fallback)
+      const entry = { id: Date.now(), title: title.trim(), prompt: fallback.prompt, elements: fallback.elements, time: new Date().toLocaleString('zh-CN') }
+      const newHistory = [entry, ...history].slice(0, 50)
+      setHistory(newHistory)
+      localStorage.setItem('pico_analyze_history', JSON.stringify(newHistory))
     } finally {
       setLoading(false)
     }
@@ -277,8 +291,15 @@ export default function Analyzer() {
     '水晶宝石质感3D图标，内部光线折射，彩虹色散光。C4D+Redshift渲染，16K分辨率，纯黑背景。',
   ]
 
+  const clearHistory = () => {
+    setHistory([])
+    localStorage.removeItem('pico_analyze_history')
+    toast.success('历史已清空')
+  }
+
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="flex gap-6 items-start">
+    <div className="flex-1 min-w-0 max-w-2xl space-y-4">
       <Tabs defaultValue="single">
         <TabsList>
           <TabsTrigger value="single">单条分析</TabsTrigger>
@@ -505,6 +526,46 @@ export default function Analyzer() {
           )}
         </TabsContent>
       </Tabs>
+    </div>
+
+    {/* 历史记录 */}
+    <div className="w-80 shrink-0 hidden lg:block">
+      <Card className="sticky top-4">
+        <CardHeader className="p-4 pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">历史记录</CardTitle>
+            {history.length > 0 && (
+              <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={clearHistory}>清空</Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 pt-0 max-h-[70vh] overflow-auto">
+          {history.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-8">暂无记录</div>
+          ) : (
+            <div className="relative pl-4 border-l border-border space-y-4">
+              {history.map(h => (
+                <div key={h.id} className="relative group">
+                  <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />
+                  <div className="text-xs text-muted-foreground mb-1">{h.time}</div>
+                  <div className="text-sm font-medium mb-1">{h.title}</div>
+                  <div className="flex flex-wrap gap-1 mb-1.5">
+                    {h.elements?.map((e, i) => <Badge key={i} variant="secondary" className="text-xs">{e}</Badge>)}
+                  </div>
+                  <div
+                    className="text-xs text-muted-foreground bg-muted p-2 rounded cursor-pointer hover:bg-accent transition-colors line-clamp-3"
+                    onClick={() => { copyText(h.prompt); }}
+                    title="点击复制"
+                  >
+                    {h.prompt}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
     </div>
   )
 }
