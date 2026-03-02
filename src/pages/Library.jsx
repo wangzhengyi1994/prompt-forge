@@ -292,6 +292,13 @@ export default function Library() {
           <Button variant="ghost" size="sm" onClick={handleExport} title="导出素材">
             <Download className="h-4 w-4 mr-1" /><span className="hidden sm:inline">导出</span>
           </Button>
+          {items.length > 0 && (
+            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => {
+              if (confirm('确定清空所有素材？此操作不可恢复')) { saveLibrary([]); setItems([]); toast.success('已清空') }
+            }} title="清空素材库">
+              <Trash2 className="h-4 w-4 mr-1" /><span className="hidden sm:inline">清空</span>
+            </Button>
+          )}
           <div className="w-px bg-border mx-1" />
           <Button variant={view === 'grid' ? 'secondary' : 'ghost'} size="icon" onClick={() => setView('grid')}><Grid3X3 className="h-4 w-4" /></Button>
           <Button variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setView('list')}><List className="h-4 w-4" /></Button>
