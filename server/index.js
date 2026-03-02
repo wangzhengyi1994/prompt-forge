@@ -64,6 +64,7 @@ async function volcRequest(action, body) {
   const date = new Date()
   const { authorization, amzDate, payloadHash } = volcSign('POST', queryString, {}, bodyStr, date)
 
+  console.log('volcRequest:', action, 'body:', bodyStr.slice(0, 100))
   const res = await fetch(`https://${VOLC_HOST}/?${queryString}`, {
     method: 'POST',
     headers: {
@@ -75,7 +76,9 @@ async function volcRequest(action, body) {
     },
     body: bodyStr,
   })
-  return res.json()
+  const data = await res.json()
+  console.log('volcResponse:', JSON.stringify(data).slice(0, 200))
+  return data
 }
 
 // 即梦AI 提交生图任务
@@ -316,7 +319,15 @@ const server = http.createServer(async (req, res) => {
 
 第二步：拆解为视觉元素
 - 将理解后的概念拆解为用户指定数量的具体的、可3D建模的视觉元素
-- 每个元素要具体到可以做成图标的物体（如"遥控器"而不是"控制"）
+- 如果概念涉及人物角色（如飞手、厨师、程序员），必须包含一个人物作为元素
+- 人物描述只写最基本的动作姿态，不要臆测穿着、装饰、配件
+  正确："无人机飞手" → ["手持遥控器的操作员", "四旋翼航拍无人机"]
+  错误："无人机飞手" → ["穿飞行服的飞手", ...]（飞手在地面操控，不穿飞行服）
+  错误："无人机飞手" → ["遥控器", "无人机"]（丢失了"人"的核心语义）
+  错误："无人机飞手" → ["戴墨镜的飞手", ...]（不要添加原概念没有的装饰）
+- 每个元素必须带有明确的修饰词，精确到不会被误解的程度，但不要添加原概念中没有的装饰性描述
+  正确："四旋翼航拍无人机"
+  错误："无人机"（太泛）
 
 第三步：描述空间关系
 - 元素之间必须符合现实逻辑的空间布局
@@ -341,10 +352,12 @@ const server = http.createServer(async (req, res) => {
         )
 
         const aiData = await aiRes.json()
-        // Support both Workers AI formats: result.response (legacy) and choices[0].message.content (OpenAI-compat)
-        let text = aiData.result?.response || aiData.result?.choices?.[0]?.message?.content || ''
-        // Strip thinking tags from Qwen3
+        // Support both Workers AI formats
+        const rawResponse = aiData?.result?.response || aiData?.result?.choices?.[0]?.message?.content
+        let text = (typeof rawResponse === 'string') ? rawResponse : JSON.stringify(rawResponse || '')
+        // Strip thinking tags
         text = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+        console.log('AI text (first 200):', text.slice(0, 200))
 
         // Parse JSON from response
         let parsed
@@ -373,6 +386,40 @@ const server = http.createServer(async (req, res) => {
         console.error('Analyze error:', e)
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: '分析失败: ' + e.message }))
+      }
+    })
+    return
+  }
+
+  // 翻译提示词为英文
+  if (req.method === 'POST' && req.url === '/api/translate') {
+    let body = ''
+    req.on('data', c => body += c)
+    req.on('end', async () => {
+      try {
+        const { text } = JSON.parse(body)
+        if (!text) { res.writeHead(400, jh); res.end(JSON.stringify({ error: '请提供文本' })); return }
+        const aiRes = await fetch(
+          'https://api.cloudflare.com/client/v4/accounts/123a93e0eb008d56cf542e2605401162/ai/run/@cf/qwen/qwen3-30b-a3b-fp8',
+          {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${CF_TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: [
+                { role: 'system', content: '你是一个专业翻译，将用户输入的中文3D图标描述提示词翻译为英文。保持所有技术术语和风格描述的准确性。只输出翻译结果，不要输出其他内容，不要输出思考过程。' },
+                { role: 'user', content: text }
+              ],
+            }),
+          }
+        )
+        const aiData = await aiRes.json()
+        let translated = String(aiData?.result?.response || aiData?.result?.choices?.[0]?.message?.content || '')
+        translated = translated.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+        res.writeHead(200, jh)
+        res.end(JSON.stringify({ translated }))
+      } catch (e) {
+        res.writeHead(500, jh)
+        res.end(JSON.stringify({ error: '翻译失败: ' + e.message }))
       }
     })
     return

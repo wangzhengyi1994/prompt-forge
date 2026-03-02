@@ -1,14 +1,36 @@
 import { copyToClipboard } from '@/lib/clipboard'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Copy, ChevronDown, RotateCcw, Sparkles, CheckCircle, AlertTriangle, BookmarkPlus, Check, Eye, EyeOff, Shuffle } from 'lucide-react'
+import { Copy, ChevronDown, RotateCcw, Sparkles, CheckCircle, AlertTriangle, BookmarkPlus, Check, Eye, EyeOff, Shuffle, History, Trash2, RotateCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { addToLibrary } from '@/lib/store'
+
+const HISTORY_KEY = 'pico_builder_history'
+const MAX_HISTORY = 15
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') } catch { return [] }
+}
+
+function pushHistory(entry) {
+  const hist = getHistory()
+  // Deduplicate by prompt text
+  const filtered = hist.filter(h => h.prompt !== entry.prompt)
+  filtered.unshift(entry)
+  if (filtered.length > MAX_HISTORY) filtered.length = MAX_HISTORY
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(filtered))
+  return filtered
+}
+
+function clearHistory() {
+  localStorage.removeItem(HISTORY_KEY)
+  return []
+}
 
 const OPTIONS = {
   材质: ['磨砂质感', '毛玻璃', '几何玻璃', '透明材质', '塑料质感', '金属质感', '水晶质感', '陶瓷质感'],
@@ -117,10 +139,24 @@ export default function PromptBuilder() {
   const scoreColor = passedCount >= 6 ? 'text-emerald-500' : passedCount >= 4 ? 'text-yellow-500' : 'text-red-500'
 
   const [copied, setCopied] = useState(false)
+  const [history, setHistory] = useState(() => getHistory())
+  const [showHistory, setShowHistory] = useState(false)
+
+  const addHistory = (p, s, subj) => {
+    const entry = { prompt: p, selections: s, subject: subj, time: new Date().toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }
+    setHistory(pushHistory(entry))
+  }
+
+  const restoreFromHistory = (entry) => {
+    if (entry.selections) setSel(entry.selections)
+    if (entry.subject !== undefined) setSubject(entry.subject)
+    toast.success('已恢复历史记录')
+  }
 
   const copyPrompt = () => {
     copyToClipboard(prompt)
     setCopied(true)
+    addHistory(prompt, sel, subject)
     toast.success('已复制')
     setTimeout(() => setCopied(false), 1500)
   }
@@ -150,6 +186,7 @@ export default function PromptBuilder() {
       template: prompt.replace(subject.trim() || '___', '{主体内容}'),
       thumbnail,
     })
+    addHistory(prompt, sel, subject)
     toast.success('已保存到素材库')
   }
 
@@ -256,6 +293,50 @@ export default function PromptBuilder() {
             </Button>
           </div>
         </CardContent>
+      </Card>
+
+      {/* History Panel */}
+      <Card>
+        <button
+          onClick={() => setShowHistory(!showHistory)}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-accent/50 transition-colors rounded-lg"
+        >
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">最近生成</span>
+            {history.length > 0 && <span className="text-muted-foreground">{history.length} 条</span>}
+          </div>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showHistory ? 'rotate-180' : ''}`} />
+        </button>
+        {showHistory && (
+          <CardContent className="px-4 pb-4 pt-0 border-t border-border">
+            {history.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-4 text-center">复制或收藏提示词后会自动记录</div>
+            ) : (
+              <div className="space-y-2 pt-3">
+                {history.map((h, i) => (
+                  <div key={i} className="flex items-start gap-2 p-2.5 rounded-md bg-muted/50 hover:bg-muted transition-colors group">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm line-clamp-2 leading-relaxed">{h.prompt}</div>
+                      <div className="text-xs text-muted-foreground mt-1">{h.time}</div>
+                    </div>
+                    <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => restoreFromHistory(h)} title="恢复此配置">
+                        <RotateCw className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { copyToClipboard(h.prompt); toast.success('已复制') }} title="复制">
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground mt-1" onClick={() => { setHistory(clearHistory()); toast.success('历史已清空') }}>
+                  <Trash2 className="h-3 w-3 mr-1" />清空历史
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        )}
       </Card>
     </div>
   )

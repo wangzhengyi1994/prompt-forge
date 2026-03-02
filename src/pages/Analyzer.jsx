@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 // Select removed
-import { Loader2, Sparkles, Copy, Dna, Zap, ArrowRight, ImageIcon, ChevronDown, ChevronUp, Download } from 'lucide-react'
+import { Loader2, Sparkles, Copy, Dna, Zap, ArrowRight, ImageIcon, ChevronDown, ChevronUp, Download, Package, X, Check } from 'lucide-react'
 import { toast } from 'sonner'
 
 // 语义分类: triggers(触发词) → elements(推荐元素) + label(显示名)
@@ -197,8 +197,8 @@ function analyzeText(title, desc, primaryColor = '白色', accentColors = ['蓝�
   const subjectPart = supplementary.length > 0
     ? `${subject}，搭配${supplementary.slice(0, 2).join('和')}元素`
     : subject
-  const shadowStr = noShadow ? '，无投影' : '，带柔和投影'
-  const prompt = `3D图标，主体为${subjectPart}，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座${shadowStr}，减少细节。`
+  const shadowStr = noShadow ? '，无投影，无阴影，物体悬浮在纯白背景上，底部没有任何阴影或反射' : '，带柔和投影'
+  const prompt = `3D图标，主体为${subjectPart}，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景(#FFFFFF)，无底座${shadowStr}，减少细节。`
 
   return { elements, reasons, prompt }
 }
@@ -257,20 +257,36 @@ export default function Analyzer() {
   const [generatedImages, setGeneratedImages] = useState([])
   const [imageSize, setImageSize] = useState('2k-1:1')
   const [settingsOpen, setSettingsOpen] = useState(true)
+  const [autoGen, setAutoGen] = useState(true)
+  const [editingPrompt, setEditingPrompt] = useState(false)
+  const [editPromptText, setEditPromptText] = useState('')
+  const [enPrompt, setEnPrompt] = useState('')
+  const [translating, setTranslating] = useState(false)
   const [noShadow, setNoShadow] = useState(true)
   const [genHistory, setGenHistory] = useState([])
+  const [showBatchDl, setShowBatchDl] = useState(false)
+  const [selectedDl, setSelectedDl] = useState(new Set())
   const [rightTab, setRightTab] = useState('gen')
 
-  const SIZE_OPTIONS = [
-    { value: '2k-1:1', label: '2K 1:1', w: 2048, h: 2048 },
-    { value: '2k-4:3', label: '2K 4:3', w: 2304, h: 1728 },
-    { value: '2k-3:2', label: '2K 3:2', w: 2496, h: 1664 },
-    { value: '2k-16:9', label: '2K 16:9', w: 2560, h: 1440 },
-    { value: '4k-1:1', label: '4K 1:1', w: 4096, h: 4096 },
-    { value: '4k-4:3', label: '4K 4:3', w: 4694, h: 3520 },
-    { value: '4k-3:2', label: '4K 3:2', w: 4992, h: 3328 },
-    { value: '4k-16:9', label: '4K 16:9', w: 5404, h: 3040 },
+  const [resolution, setResolution] = useState('2k')
+  const [ratio, setRatio] = useState('1:1')
+
+  const RATIO_OPTIONS = [
+    { value: '1:1', label: '1:1' },
+    { value: '4:3', label: '4:3' },
+    { value: '3:2', label: '3:2' },
+    { value: '16:9', label: '16:9' },
   ]
+  const RES_OPTIONS = [
+    { value: '1k', label: '1K' },
+    { value: '2k', label: '2K' },
+    { value: '4k', label: '4K' },
+  ]
+  const SIZE_MAP = {
+    '1k-1:1': { w: 1024, h: 1024 }, '1k-4:3': { w: 1152, h: 864 }, '1k-3:2': { w: 1248, h: 832 }, '1k-16:9': { w: 1280, h: 720 },
+    '2k-1:1': { w: 2048, h: 2048 }, '2k-4:3': { w: 2304, h: 1728 }, '2k-3:2': { w: 2496, h: 1664 }, '2k-16:9': { w: 2560, h: 1440 },
+    '4k-1:1': { w: 4096, h: 4096 }, '4k-4:3': { w: 4694, h: 3520 }, '4k-3:2': { w: 4992, h: 3328 }, '4k-16:9': { w: 5404, h: 3040 },
+  }
 
   const API_BASE = import.meta.env.VITE_COLLECT_API || 'https://api.shengtu.uk'
 
@@ -292,8 +308,8 @@ export default function Analyzer() {
         : `${primaryColor}为主色调`
       const elementsStr = ai.elements.join(' + ')
       const layoutDesc = ai.layout ? `，${ai.layout}` : ''
-      const shadowStr = noShadow ? '，无投影' : '，带柔和投影'
-      const prompt = `单个3D图标，主体为${ai.subject || elementsStr}，包含${elementsStr}元素${layoutDesc}，所有元素组合在同一个图标中且保持独立完整造型，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座${shadowStr}，减少细节，只生成一张图。`
+      const shadowStr = noShadow ? '，无投影，无阴影，物体悬浮在纯白背景上，底部没有任何阴影或反射' : '，带柔和投影'
+      const prompt = `单个3D图标，主体为${ai.subject || elementsStr}，包含${elementsStr}元素${layoutDesc}，所有元素组合在同一个图标中且保持独立完整造型，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景(#FFFFFF)，无底座${shadowStr}，减少细节，只生成一张图。`
 
       const newResult = {
         elements: ai.elements,
@@ -301,6 +317,8 @@ export default function Analyzer() {
         prompt,
       }
       setResult(newResult)
+      setEditingPrompt(false)
+      translatePrompt(prompt)
       // 保存历史到后端
       const entry = { title: title.trim(), prompt, elements: ai.elements, time: new Date().toLocaleString('zh-CN') }
       fetch(`${API_BASE}/api/history`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry) }).catch(() => {})
@@ -315,8 +333,31 @@ export default function Analyzer() {
       setHistory(prev => [{ ...entry, id: Date.now() }, ...prev].slice(0, 200))
     } finally {
       setLoading(false)
+      if (autoGen) setPendingAutoGen(true)
     }
   }
+
+  const translatePrompt = async (text) => {
+    setTranslating(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/translate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      })
+      const data = await res.json()
+      if (data.translated) setEnPrompt(data.translated)
+    } catch (e) { console.warn('translate failed:', e) }
+    finally { setTranslating(false) }
+  }
+
+  // 自动生图: 分析完成后自动触发
+  const [pendingAutoGen, setPendingAutoGen] = useState(false)
+  useEffect(() => {
+    if (pendingAutoGen && result?.prompt && !generating) {
+      setPendingAutoGen(false)
+      generateImage()
+    }
+  }, [pendingAutoGen, result])
 
   const generateImage = async () => {
     if (!result?.prompt) { toast.error('请先分析生成提示词'); return }
@@ -324,7 +365,8 @@ export default function Analyzer() {
     setGeneratedImages([])
     try {
       // 提交任务
-      const sizeOpt = SIZE_OPTIONS.find(s => s.value === imageSize) || SIZE_OPTIONS[0]
+      const sizeKey = `${resolution}-${ratio}`
+      const sizeOpt = SIZE_MAP[sizeKey] || SIZE_MAP['2k-1:1']
       const submitRes = await fetch(`${API_BASE}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -353,7 +395,7 @@ export default function Analyzer() {
             title: title.trim() || '未命名',
             prompt: result.prompt,
             images: queryData.images,
-            size: imageSize,
+            size: `${resolution}-${ratio}`,
             time: new Date().toLocaleString('zh-CN'),
           }
           setGenHistory(prev => {
@@ -411,7 +453,7 @@ export default function Analyzer() {
     toast.success('历史已清空')
   }
 
-  const settingsSummary = `${primaryColor}${accentColors.length ? ' + ' + accentColors.join('+') : ''} · ${texture} · ${elementCount}个元素 · ${noShadow ? '无投影' : '有投影'}`
+  const settingsSummary = `${primaryColor}${accentColors.length ? ' + ' + accentColors.join('+') : ''} · ${texture} · ${elementCount}个元素 · ${noShadow ? '无投影' : '有投影'} · ${autoGen ? '自动生图' : '手动生图'}`
 
   return (
     <div className="space-y-4">
@@ -511,6 +553,13 @@ export default function Analyzer() {
                         ))}
                       </div>
                     </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">自动生图</label>
+                      <button onClick={() => setAutoGen(!autoGen)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoGen ? 'bg-primary' : 'bg-muted'}`}>
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${autoGen ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -523,46 +572,77 @@ export default function Analyzer() {
       {result ? (
         <>
           <Card>
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-base">提示词</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 space-y-4">
-              <div className="bg-muted p-4 rounded-lg text-sm cursor-pointer hover:bg-accent transition-colors group relative"
-                onClick={() => copyText(result.prompt)}>
-                {result.prompt}
-                <span className="absolute top-2 right-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">点击复制</span>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold">提示词</div>
+                <div className="flex gap-1">
+                  {editingPrompt ? (
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => {
+                      setResult({ ...result, prompt: editPromptText })
+                      setEditingPrompt(false)
+                      translatePrompt(editPromptText)
+                    }}>保存</Button>
+                  ) : (
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => {
+                      setEditPromptText(result.prompt)
+                      setEditingPrompt(true)
+                    }}>编辑</Button>
+                  )}
+                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => copyText(result.prompt)}>
+                    <Copy className="h-3 w-3 mr-1" />复制
+                  </Button>
+                </div>
               </div>
+              {editingPrompt ? (
+                <Textarea value={editPromptText} onChange={e => setEditPromptText(e.target.value)}
+                  className="text-sm min-h-[80px]" rows={4} />
+              ) : (
+                <div className="space-y-2">
+                  <div className="bg-muted p-3 rounded-lg text-sm">
+                    <div className="text-xs text-muted-foreground mb-1">中文</div>
+                    {result.prompt}
+                  </div>
+                  <div className="bg-muted p-3 rounded-lg text-sm">
+                    <div className="text-xs text-muted-foreground mb-1">English</div>
+                    {translating ? <span className="text-muted-foreground">翻译中...</span> : (enPrompt || <span className="text-muted-foreground">等待翻译</span>)}
+                  </div>
+                </div>
+              )}
               <div>
                 <div className="text-xs text-muted-foreground mb-1">推荐元素</div>
                 <div className="flex flex-wrap gap-1">
-                  {result.elements.map((e, i) => <Badge key={i}>{e}</Badge>)}
+                  {result.elements.map((e, i) => <Badge key={i} className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/15">{e}</Badge>)}
                 </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">设计理由</div>
-                <ul className="text-sm space-y-1">
-                  {result.reasons.map((r, i) => <li key={i} className="text-muted-foreground">• {r}</li>)}
-                </ul>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-base">即梦AI 生图</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 space-y-4">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-2 block">尺寸</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {SIZE_OPTIONS.map(s => (
-                    <button key={s.value} onClick={() => setImageSize(s.value)}
-                      className={`px-2.5 py-1 rounded-md text-xs transition-all ${imageSize === s.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
-                      {s.label}
-                    </button>
-                  ))}
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <label className="text-xs text-muted-foreground mb-1.5 block">比例</label>
+                  <div className="flex gap-1">
+                    {RATIO_OPTIONS.map(r => (
+                      <button key={r.value} onClick={() => setRatio(r.value)}
+                        className={`px-2.5 py-1 rounded-md text-xs transition-all ${ratio === r.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1.5 block">清晰度</label>
+                  <div className="flex gap-1">
+                    {RES_OPTIONS.map(r => (
+                      <button key={r.value} onClick={() => setResolution(r.value)}
+                        className={`px-2.5 py-1 rounded-md text-xs transition-all ${resolution === r.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <Button onClick={generateImage} disabled={generating} variant="secondary" className="w-full">
+              <Button onClick={generateImage} disabled={generating} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
                 {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <ImageIcon className="h-4 w-4 mr-1" />}
                 {generating ? '生成中...' : '生成图片'}
               </Button>
@@ -575,8 +655,8 @@ export default function Analyzer() {
                           <img src={url} alt={`生成图片 ${i + 1}`} className="rounded-lg w-full hover:opacity-90 transition-opacity" />
                         </a>
                         <button onClick={() => downloadImage(url, `${title || 'pico'}-${i + 1}.png`)}
-                          className="absolute top-2 right-2 p-1.5 rounded-md bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70">
-                          <Download className="h-4 w-4" />
+                          className="absolute top-2 right-2 p-2.5 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70">
+                          <Download className="h-5 w-5" />
                         </button>
                       </div>
                     ))}
@@ -633,12 +713,18 @@ export default function Analyzer() {
               <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={clearHistory}>清空</Button>
             )}
             {rightTab === 'gen' && genHistory.length > 0 && (
-              <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={() => {
-                fetch(`${API_BASE}/api/gen-history`, { method: 'DELETE' }).catch(() => {})
-                setGenHistory([])
-                localStorage.removeItem('pico_gen_history')
-                toast.success('生图记录已清空')
-              }}>清空</Button>
+              <div className="flex gap-1">
+                <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={() => {
+                  setSelectedDl(new Set())
+                  setShowBatchDl(true)
+                }}><Package className="h-3 w-3 mr-1" />批量下载</Button>
+                <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={() => {
+                  fetch(`${API_BASE}/api/gen-history`, { method: 'DELETE' }).catch(() => {})
+                  setGenHistory([])
+                  localStorage.removeItem('pico_gen_history')
+                  toast.success('生图记录已清空')
+                }}>清空</Button>
+              </div>
             )}
           </div>
         </CardHeader>
@@ -659,8 +745,8 @@ export default function Analyzer() {
                         <div key={i} className="relative group">
                           <img src={url} alt="" className="rounded w-full aspect-square object-cover" />
                           <button onClick={() => downloadImage(url, `${g.title}-${i + 1}.png`)}
-                            className="absolute top-1 right-1 p-1 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70">
-                            <Download className="h-3 w-3" />
+                            className="absolute top-2 right-2 p-2 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70">
+                            <Download className="h-5 w-5" />
                           </button>
                         </div>
                       ))}
@@ -690,7 +776,7 @@ export default function Analyzer() {
                     <div className="text-xs text-muted-foreground mb-1">{h.time}</div>
                     <div className="text-sm font-medium mb-1">{h.title}</div>
                     <div className="flex flex-wrap gap-1 mb-1.5">
-                      {h.elements?.map((e, i) => <Badge key={i} variant="secondary" className="text-xs">{e}</Badge>)}
+                      {h.elements?.map((e, i) => <Badge key={i} className="text-xs bg-primary/10 text-primary border-primary/20">{e}</Badge>)}
                     </div>
                     <div className="text-xs text-muted-foreground bg-muted p-2 rounded cursor-pointer hover:bg-accent transition-colors line-clamp-3"
                       onClick={() => copyText(h.prompt)} title="点击复制">
@@ -724,7 +810,7 @@ export default function Analyzer() {
                   <span className="font-medium text-sm">{r.title}</span>
                   <Badge variant="outline" className="text-xs">3D图标</Badge>
                 </div>
-                <div className="flex flex-wrap gap-1">{r.elements.map((e, j) => <Badge key={j} variant="secondary">{e}</Badge>)}</div>
+                <div className="flex flex-wrap gap-1">{r.elements.map((e, j) => <Badge key={j} className="bg-primary/10 text-primary border-primary/20">{e}</Badge>)}</div>
                 <div className="bg-muted p-3 rounded-md text-sm">{r.prompt}</div>
                 <Button variant="ghost" size="sm" onClick={() => copyText(r.prompt)}><Copy className="h-3 w-3 mr-1" />复制</Button>
               </CardContent>
@@ -809,6 +895,56 @@ export default function Analyzer() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* 批量下载弹窗 */}
+      {showBatchDl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowBatchDl(false)}>
+          <div className="bg-background rounded-xl shadow-2xl w-[90vw] max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b">
+              <span className="font-semibold">批量下载 ({selectedDl.size} 张已选)</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => {
+                  const all = new Set()
+                  genHistory.forEach(g => g.images?.forEach(url => all.add(url)))
+                  setSelectedDl(prev => prev.size === all.size ? new Set() : all)
+                }}>
+                  {(() => { let total = 0; genHistory.forEach(g => total += (g.images?.length || 0)); return selectedDl.size === total ? '取消全选' : '全选' })()}
+                </Button>
+                <Button size="sm" disabled={selectedDl.size === 0} className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => {
+                  selectedDl.forEach(url => {
+                    const a = document.createElement('a'); a.href = url; a.download = ''; a.target = '_blank'; document.body.appendChild(a); a.click(); a.remove()
+                  })
+                  toast.success(`开始下载 ${selectedDl.size} 张图片`)
+                  setShowBatchDl(false)
+                }}>
+                  <Download className="h-3.5 w-3.5 mr-1" />下载选中
+                </Button>
+                <button onClick={() => setShowBatchDl(false)} className="p-1 rounded hover:bg-muted"><X className="h-4 w-4" /></button>
+              </div>
+            </div>
+            <div className="p-4 overflow-auto flex-1 space-y-4">
+              {[...genHistory].sort((a, b) => new Date(b.time) - new Date(a.time)).map(g => (
+                <div key={g.id}>
+                  <div className="text-xs text-muted-foreground mb-2">{g.time} — {g.title}</div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {g.images?.map((url, i) => (
+                      <div key={i} className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${selectedDl.has(url) ? 'border-primary' : 'border-transparent hover:border-muted-foreground/30'}`}
+                        onClick={() => setSelectedDl(prev => { const n = new Set(prev); n.has(url) ? n.delete(url) : n.add(url); return n })}>
+                        <img src={url} alt="" className="w-full aspect-square object-cover" />
+                        {selectedDl.has(url) && (
+                          <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="h-3 w-3 text-primary-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
