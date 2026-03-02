@@ -153,6 +153,11 @@ const server = http.createServer(async (req, res) => {
           return
         }
 
+        // Rewrite image URLs to go through proxy
+        if (result.images?.length) {
+          result.images = result.images.map(url => `/api/img?url=${encodeURIComponent(url)}`)
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify(result))
       } catch (e) {
@@ -161,6 +166,30 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ error: '采集失败: ' + e.message }))
       }
     })
+    return
+  }
+
+  // Image proxy to bypass hotlink protection
+  if (req.method === 'GET' && req.url.startsWith('/api/img?')) {
+    const imgUrl = new URL(req.url, 'http://localhost').searchParams.get('url')
+    if (!imgUrl) { res.writeHead(400); res.end('missing url'); return }
+    try {
+      const imgRes = await fetch(imgUrl, {
+        headers: {
+          'Referer': 'https://www.xiaohongshu.com/',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      })
+      res.writeHead(200, {
+        'Content-Type': imgRes.headers.get('content-type') || 'image/webp',
+        'Cache-Control': 'public, max-age=86400',
+        'Access-Control-Allow-Origin': '*',
+      })
+      const buf = Buffer.from(await imgRes.arrayBuffer())
+      res.end(buf)
+    } catch (e) {
+      res.writeHead(500); res.end('proxy failed')
+    }
     return
   }
 

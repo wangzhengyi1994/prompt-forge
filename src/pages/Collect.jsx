@@ -9,6 +9,15 @@ import { addToLibrary } from '@/lib/store'
 import { Loader2, Download, Save, Plus, X, Plug, ClipboardPaste, FileText, Link } from 'lucide-react'
 import { toast } from 'sonner'
 
+const API_BASE = import.meta.env.VITE_COLLECT_API || 'https://apparently-evidence-commodity-performances.trycloudflare.com'
+function getApiBase() { return API_BASE }
+function proxyImg(src) {
+  if (!src) return src
+  if (src.startsWith('/api/img')) return `${API_BASE}${src}`
+  if (src.startsWith('http')) return `${API_BASE}/api/img?url=${encodeURIComponent(src)}`
+  return src
+}
+
 export default function Collect() {
   // URL collect
   const [url, setUrl] = useState('')
@@ -42,7 +51,7 @@ export default function Collect() {
     if (!url.trim()) return
     setUrlLoading(true)
     try {
-      const apiBase = import.meta.env.VITE_COLLECT_API || 'https://apparently-evidence-commodity-performances.trycloudflare.com'
+      const apiBase = getApiBase()
       const resp = await fetch(`${apiBase}/api/collect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -129,7 +138,7 @@ export default function Collect() {
             <span className="text-xs text-muted-foreground">图片 ({data.images.length})</span>
             <div className="flex flex-wrap gap-2 mt-1">
               {data.images.slice(0, 6).map((img, i) => (
-                <img key={i} src={img} alt="" className="w-16 h-16 object-cover rounded border" />
+                <img key={i} src={proxyImg(img)} alt="" className="w-16 h-16 object-cover rounded border" />
               ))}
             </div>
           </div>
