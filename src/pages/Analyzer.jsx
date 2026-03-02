@@ -299,7 +299,7 @@ export default function Analyzer() {
 
   return (
     <div className="flex gap-6 items-start">
-    <div className="flex-1 min-w-0 max-w-2xl space-y-4">
+    <div className="flex-1 min-w-0 space-y-4">
       <Tabs defaultValue="single">
         <TabsList>
           <TabsTrigger value="single">单条分析</TabsTrigger>
@@ -527,7 +527,7 @@ export default function Analyzer() {
     </div>
 
     {/* 历史记录 */}
-    <div className="w-80 shrink-0 hidden lg:block">
+    <div className="flex-1 min-w-0 hidden lg:block">
       <Card className="sticky top-4">
         <CardHeader className="p-4 pb-2">
           <div className="flex items-center justify-between">
