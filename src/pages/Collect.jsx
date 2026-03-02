@@ -42,7 +42,7 @@ export default function Collect() {
     if (!url.trim()) return
     setUrlLoading(true)
     try {
-      const apiBase = import.meta.env.VITE_COLLECT_API || ''
+      const apiBase = import.meta.env.VITE_COLLECT_API || 'https://apparently-evidence-commodity-performances.trycloudflare.com'
       const resp = await fetch(`${apiBase}/api/collect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
