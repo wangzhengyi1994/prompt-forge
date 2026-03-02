@@ -208,7 +208,7 @@ export default function Analyzer() {
   const [primaryColor, setPrimaryColor] = useState('白色')
   const [accentColors, setAccentColors] = useState(['蓝色'])
   const [texture, setTexture] = useState('磨砂质感')
-  const [elementCount, setElementCount] = useState(3)
+  const [elementCount, setElementCount] = useState(2)
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   // batch
