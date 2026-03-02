@@ -132,8 +132,8 @@ export default function PromptBuilder() {
   const [highlightMode, setHighlightMode] = useState(true)
 
   const dimResults = useMemo(() => {
-    return DIMENSIONS.map(d => ({ ...d, passed: d.check(prompt) }))
-  }, [prompt])
+    return DIMENSIONS.map(d => ({ ...d, passed: d.check(activePrompt) }))
+  }, [activePrompt])
 
   const passedCount = dimResults.filter(d => d.passed).length
   const scoreColor = passedCount >= 6 ? 'text-emerald-500' : passedCount >= 4 ? 'text-yellow-500' : 'text-red-500'
@@ -141,6 +141,42 @@ export default function PromptBuilder() {
   const [copied, setCopied] = useState(false)
   const [history, setHistory] = useState(() => getHistory())
   const [showHistory, setShowHistory] = useState(false)
+  const [lang, setLang] = useState('zh') // 'zh' | 'en'
+
+  // English translation map
+  const EN_MAP = {
+    材质: { '磨砂质感': 'frosted matte', '毛玻璃': 'frosted glass', '几何玻璃': 'geometric glass', '透明材质': 'transparent', '塑料质感': 'plastic', '金属质感': 'metallic', '水晶质感': 'crystal', '陶瓷质感': 'ceramic' },
+    视角: { '2.5D': '2.5D isometric', '等轴侧': 'isometric', '斜角透视': 'oblique perspective', '平视': 'eye-level', '正面透视': 'front perspective', '俯视': 'top-down', '仰视': 'low-angle' },
+    色调: { '蓝白': 'blue and white', '多彩低饱和': 'colorful low-saturation', '单色渐变': 'monochrome gradient', '蓝白带绿': 'blue-white with green accents', '粉紫': 'pink and purple', '暖色系': 'warm tones', '冷色系': 'cool tones' },
+    背景: { '纯白': 'pure white', '浅蓝': 'light blue', '浅灰': 'light gray', '纯黑': 'pure black', '渐变': 'gradient' },
+    风格: { '梦幻': 'dreamy', '科技': 'tech', '可爱清新': 'cute and fresh', '现代简约': 'modern minimal', '赛博朋克': 'cyberpunk', '扁平': 'flat', '新拟态': 'neumorphism', '像素': 'pixel art' },
+    细节度: { '多细节': 'highly detailed', '有一定细节': 'moderately detailed', '减少细节': 'minimal detail', '极简': 'ultra minimal' },
+    分辨率: { '4K': '4K', '8K': '8K', '16K': '16K' },
+    渲染器: { 'C4D+OC': 'Cinema 4D + Octane Render', 'Blender': 'Blender', 'C4D+Redshift': 'Cinema 4D + Redshift' },
+  }
+
+  const enPromptSegments = useMemo(() => {
+    const t = (cat, val) => (EN_MAP[cat] && EN_MAP[cat][val]) || val
+    const segs = []
+    if (sel.风格) segs.push({ text: `${t('风格', sel.风格)} style`, dim: '风格' })
+    if (sel.材质) segs.push({ text: ` ${t('材质', sel.材质)}`, dim: '材质' })
+    segs.push({ text: ' 3D icon', dim: null })
+    if (subject.trim()) segs.push({ text: `, subject: ${subject.trim()}`, dim: '主体' })
+    if (sel.视角) segs.push({ text: `, ${t('视角', sel.视角)} view`, dim: '视角' })
+    if (sel.色调 && sel.色调 !== '自定义') segs.push({ text: `, ${t('色调', sel.色调)} color palette`, dim: '色调' })
+    if (sel.背景 && sel.背景 !== '自定义') segs.push({ text: `, ${t('背景', sel.背景)} background`, dim: '背景' })
+    if (sel.细节度) segs.push({ text: `, ${t('细节度', sel.细节度)}`, dim: '细节度' })
+    if (sel.渲染器 && sel.渲染器 !== '不指定') segs.push({ text: `. Rendered in ${t('渲染器', sel.渲染器)}`, dim: '渲染器' })
+    if (sel.分辨率) segs.push({ text: `, ${t('分辨率', sel.分辨率)} resolution`, dim: '分辨率' })
+    segs.push({ text: '. Clean background, no base, no unnecessary decorations.', dim: '约束' })
+    if (extraConstraint.trim()) segs.push({ text: ' ' + extraConstraint.trim(), dim: '约束' })
+    return segs
+  }, [sel, subject, extraConstraint])
+
+  const enPrompt = useMemo(() => enPromptSegments.map(s => s.text).join(''), [enPromptSegments])
+
+  const activeSegments = lang === 'zh' ? promptSegments : enPromptSegments
+  const activePrompt = lang === 'zh' ? prompt : enPrompt
 
   const addHistory = (p, s, subj) => {
     const entry = { prompt: p, selections: s, subject: subj, time: new Date().toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }
@@ -154,10 +190,10 @@ export default function PromptBuilder() {
   }
 
   const copyPrompt = () => {
-    copyToClipboard(prompt)
+    copyToClipboard(activePrompt)
     setCopied(true)
-    addHistory(prompt, sel, subject)
-    toast.success('已复制')
+    addHistory(activePrompt, sel, subject)
+    toast.success(lang === 'en' ? '已复制英文提示词' : '已复制')
     setTimeout(() => setCopied(false), 1500)
   }
 
@@ -243,7 +279,11 @@ export default function PromptBuilder() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm">实时预览</CardTitle>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{prompt.length} 字</span>
+              <div className="flex rounded-md border border-border overflow-hidden text-xs">
+                <button onClick={() => setLang('zh')} className={`px-2 py-0.5 transition-colors ${lang === 'zh' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>中文</button>
+                <button onClick={() => setLang('en')} className={`px-2 py-0.5 transition-colors ${lang === 'en' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>EN</button>
+              </div>
+              <span className="text-xs text-muted-foreground">{activePrompt.length} 字</span>
               <span className={`text-xs font-medium ${scoreColor}`}>
                 <Sparkles className="h-3 w-3 inline mr-0.5" />
                 {passedCount}/7 维度
@@ -253,13 +293,13 @@ export default function PromptBuilder() {
         </CardHeader>
         <CardContent className="p-4 pt-0 space-y-3">
           <div className="bg-muted p-4 rounded-md text-sm whitespace-pre-wrap min-h-[60px] leading-relaxed">
-            {highlightMode ? promptSegments.map((seg, i) => (
+            {highlightMode ? activeSegments.map((seg, i) => (
               seg.dim ? (
                 <span key={i} className={`${DIM_COLORS[seg.dim] || ''} px-0.5 rounded`} title={seg.dim}>{seg.text}</span>
               ) : (
                 <span key={i}>{seg.text}</span>
               )
-            )) : prompt}
+            )) : activePrompt}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="text-xs h-6" onClick={() => setHighlightMode(!highlightMode)}>
@@ -267,7 +307,7 @@ export default function PromptBuilder() {
             </Button>
             {highlightMode && (
               <div className="flex flex-wrap gap-1">
-                {Object.entries(DIM_COLORS).filter(([k]) => promptSegments.some(s => s.dim === k)).map(([k, cls]) => (
+                {Object.entries(DIM_COLORS).filter(([k]) => activeSegments.some(s => s.dim === k)).map(([k, cls]) => (
                   <span key={k} className={`text-xs px-1.5 py-0.5 rounded ${cls}`}>{k}</span>
                 ))}
               </div>

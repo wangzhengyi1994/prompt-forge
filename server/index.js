@@ -90,6 +90,7 @@ async function jimengSubmit(prompt, opts = {}) {
     width: opts.width || 1024,
     height: opts.height || 1024,
   }
+  if (opts.seed !== undefined) body.seed = opts.seed
   if (opts.scale !== undefined) body.scale = opts.scale
   return volcRequest('CVSync2AsyncSubmitTask', body)
 }
@@ -309,40 +310,38 @@ const server = http.createServer(async (req, res) => {
               messages: [
                 {
                   role: 'system',
-                  content: `你是一个专业的3D图标设计顾问。用户会输入一个功能名称或概念，你需要：
+                  content: `你是一个3D图标设计顾问。用户输入功能名称或概念，你分析并输出JSON。
 
-第一步：完整理解输入含义
-- 先把输入当作一个完整的概念来理解，不要拆字
-- 例如："无人机飞手" = 操控无人机的飞行员，不是"无人机"+"手"
-- 例如："飞行里程数" = 飞行距离统计，不是"飞行"+"里程"+"数"
-- 如果是专业术语或复合词，保持其完整语义
+## 分析步骤
 
-第二步：拆解为视觉元素
-- 将理解后的概念拆解为用户指定数量的具体的、可3D建模的视觉元素
-- 如果概念涉及人物角色（如飞手、厨师、程序员），必须包含一个人物作为元素
-- 人物描述只写最基本的动作姿态，不要臆测穿着、装饰、配件
-  正确："无人机飞手" → ["手持遥控器的操作员", "四旋翼航拍无人机"]
-  错误："无人机飞手" → ["穿飞行服的飞手", ...]（飞手在地面操控，不穿飞行服）
-  错误："无人机飞手" → ["遥控器", "无人机"]（丢失了"人"的核心语义）
-  错误："无人机飞手" → ["戴墨镜的飞手", ...]（不要添加原概念没有的装饰）
-- 每个元素必须带有明确的修饰词，精确到不会被误解的程度，但不要添加原概念中没有的装饰性描述
-  正确："四旋翼航拍无人机"
-  错误："无人机"（太泛）
+1. 场景还原：这个概念在现实中是什么场景？
+   - "无人机飞手" → 一个人站在户外草地上，双手拿着遥控器，抬头看天上的无人机
+   - "云存储" → 抽象概念，没有具象场景，用隐喻物体表达（云朵+文件夹）
+   - "外卖骑手" → 一个人骑着电动车，后座有外卖箱
 
-第三步：描述空间关系
-- 元素之间必须符合现实逻辑的空间布局
-- 每个元素保持独立完整外形，通过空间位置（旁边、上方、环绕等）表达关联
-- 绝对不能把不相关的元素物理融合成一个奇怪的物体
+2. 判断类型：
+   - 具象场景（有真实物理空间）→ 从场景中提取关键物体
+   - 抽象概念（没有物理对应）→ 用常见隐喻物体表达
 
-错误示例：把时钟嵌入无人机机身 → "带表盘的无人机"
-正确示例：无人机悬浮在空中，旁边有一个独立的时钟
+3. 提取元素：
+   - 涉及人物时：描述人物的动作和姿态（自然、有动感），不要臆测穿着
+     正确："双手操控遥控器的人" / "骑车送餐的人"
+     错误："穿飞行服的飞手"（飞手不穿飞行服）/ "戴墨镜的人"（没提到墨镜）
+   - 不涉及人物时：用具体物体，带明确修饰词
+     正确："四旋翼航拍无人机" / "打开的文件夹"
+     错误："无人机"（太泛）/ "文件"（太泛）
+   - 人物姿态要自然有动感，不要僵硬站立
 
-严格按以下JSON格式输出，不要输出其他内容，不要输出思考过程：
+4. 空间布局：元素之间符合现实逻辑的位置关系，每个元素独立完整，不要物理融合
+
+## 输出格式
+严格JSON，不要思考过程：
 {
+  "scene_type": "具象" 或 "抽象",
+  "scene_desc": "一句话描述还原的真实场景",
   "elements": ["元素1", "元素2"],
-  "layout": "一句话描述元素之间的空间布局",
-  "reasoning": "简要说明设计思路",
-  "subject": "一句话描述图标主体场景"
+  "layout": "元素间的空间位置关系",
+  "subject": "图标主体场景描述"
 }`
                 },
                 { role: 'user', content: prompt }
@@ -372,6 +371,8 @@ const server = http.createServer(async (req, res) => {
             elements: parsed.elements,
             reasoning: parsed.reasoning || '',
             subject: parsed.subject || title,
+            scene_type: parsed.scene_type || '',
+            scene_desc: parsed.scene_desc || '',
           }))
         } else {
           // Fallback: return title as subject
@@ -398,12 +399,12 @@ const server = http.createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const { text } = JSON.parse(body)
-        if (!text) { res.writeHead(400, jh); res.end(JSON.stringify({ error: '请提供文本' })); return }
+        if (!text) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: '请提供文本' })); return }
         const aiRes = await fetch(
           'https://api.cloudflare.com/client/v4/accounts/123a93e0eb008d56cf542e2605401162/ai/run/@cf/qwen/qwen3-30b-a3b-fp8',
           {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${CF_TOKEN}`, 'Content-Type': 'application/json' },
+            headers: { 'Authorization': 'Bearer bWggTDaHE-qlLszuwZJc-RD40bxRYAuO4pPj-gzz', 'Content-Type': 'application/json' },
             body: JSON.stringify({
               messages: [
                 { role: 'system', content: '你是一个专业翻译，将用户输入的中文3D图标描述提示词翻译为英文。保持所有技术术语和风格描述的准确性。只输出翻译结果，不要输出其他内容，不要输出思考过程。' },
@@ -415,10 +416,10 @@ const server = http.createServer(async (req, res) => {
         const aiData = await aiRes.json()
         let translated = String(aiData?.result?.response || aiData?.result?.choices?.[0]?.message?.content || '')
         translated = translated.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
-        res.writeHead(200, jh)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ translated }))
       } catch (e) {
-        res.writeHead(500, jh)
+        res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: '翻译失败: ' + e.message }))
       }
     })
@@ -529,9 +530,9 @@ const server = http.createServer(async (req, res) => {
     req.on('data', c => body += c)
     req.on('end', async () => {
       try {
-        const { prompt, width, height } = JSON.parse(body)
+        const { prompt, width, height, seed } = JSON.parse(body)
         if (!prompt) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: '请提供提示词' })); return }
-        const result = await jimengSubmit(prompt, { width: width || 1024, height: height || 1024 })
+        const result = await jimengSubmit(prompt, { width: width || 1024, height: height || 1024, seed })
         if (result.code === 10000 && result.data?.task_id) {
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ task_id: result.data.task_id }))

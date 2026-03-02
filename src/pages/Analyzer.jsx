@@ -258,6 +258,8 @@ export default function Analyzer() {
   const [imageSize, setImageSize] = useState('2k-1:1')
   const [settingsOpen, setSettingsOpen] = useState(true)
   const [autoGen, setAutoGen] = useState(true)
+  const [seed, setSeed] = useState('')
+  const [refImages, setRefImages] = useState([]) // [{ url, prompt }]
   const [editingPrompt, setEditingPrompt] = useState(false)
   const [editPromptText, setEditPromptText] = useState('')
   const [enPrompt, setEnPrompt] = useState('')
@@ -308,8 +310,8 @@ export default function Analyzer() {
         : `${primaryColor}为主色调`
       const elementsStr = ai.elements.join(' + ')
       const layoutDesc = ai.layout ? `，${ai.layout}` : ''
-      const shadowStr = noShadow ? '，无投影，无阴影，物体悬浮在纯白背景上，底部没有任何阴影或反射' : '，带柔和投影'
-      const prompt = `单个3D图标，主体为${ai.subject || elementsStr}，包含${elementsStr}元素${layoutDesc}，所有元素组合在同一个图标中且保持独立完整造型，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景(#FFFFFF)，无底座${shadowStr}，减少细节，只生成一张图。`
+      const shadowStr = noShadow ? '，无投影，无阴影，物体悬浮在纯白背景上' : '，带柔和投影'
+      const prompt = `单个3D图标，${ai.subject || elementsStr}，包含${elementsStr}${layoutDesc}，每个元素独立完整，人物姿态自然有动感，${texture}，${colorDesc}，等轴侧视角，Blender渲染，8K分辨率，纯白背景${shadowStr}，无底座，简洁干净，只生成一张图。`
 
       const newResult = {
         elements: ai.elements,
@@ -350,27 +352,44 @@ export default function Analyzer() {
     finally { setTranslating(false) }
   }
 
-  // 自动生图: 分析完成后自动触发
+  // 自动生图: 等翻译完成后再触发
   const [pendingAutoGen, setPendingAutoGen] = useState(false)
   useEffect(() => {
-    if (pendingAutoGen && result?.prompt && !generating) {
+    if (pendingAutoGen && result?.prompt && enPrompt && !generating && !translating) {
       setPendingAutoGen(false)
       generateImage()
     }
-  }, [pendingAutoGen, result])
+  }, [pendingAutoGen, result, enPrompt, translating])
 
   const generateImage = async () => {
     if (!result?.prompt) { toast.error('请先分析生成提示词'); return }
     setGenerating(true)
     setGeneratedImages([])
     try {
-      // 提交任务
+      // 获取英文提示词 (如果还没翻译好就现翻)
+      let promptForGen = enPrompt
+      if (!promptForGen) {
+        const trRes = await fetch(`${API_BASE}/api/translate`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: result.prompt })
+        })
+        const trData = await trRes.json()
+        if (trData.translated) { promptForGen = trData.translated; setEnPrompt(trData.translated) }
+        else promptForGen = result.prompt
+      }
+      // 追加纯白背景强约束
+      promptForGen += ', pure white background #FFFFFF, no warm tint, no color cast, no gradient, studio lighting, neutral white'
+      // 如果有风格参考, 追加一致性描述
+      if (refImages.length > 0) {
+        promptForGen += ', consistent style with reference images, same material texture, same lighting setup, same color palette, same level of detail'
+      }
+      // 提交任务 (用英文提示词)
       const sizeKey = `${resolution}-${ratio}`
       const sizeOpt = SIZE_MAP[sizeKey] || SIZE_MAP['2k-1:1']
       const submitRes = await fetch(`${API_BASE}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: result.prompt, width: sizeOpt.w, height: sizeOpt.h }),
+        body: JSON.stringify({ prompt: promptForGen, width: sizeOpt.w, height: sizeOpt.h, ...(seed ? { seed: parseInt(seed) } : {}), ...(refImages.length ? { ref_images: refImages.map(r => r.url) } : {}) }),
       })
       const submitData = await submitRes.json()
       if (!submitData.task_id) throw new Error(submitData.error || '提交失败')
@@ -390,17 +409,27 @@ export default function Analyzer() {
         const queryData = await queryRes.json()
         if (queryData.status === 'done' && queryData.images?.length) {
           setGeneratedImages(queryData.images)
-          const genEntry = {
-            id: Date.now(),
-            title: title.trim() || '未命名',
-            prompt: result.prompt,
-            images: queryData.images,
-            size: `${resolution}-${ratio}`,
-            time: new Date().toLocaleString('zh-CN'),
-          }
           setGenHistory(prev => {
-            const updated = [genEntry, ...prev].slice(0, 100)
-            fetch(`${API_BASE}/api/gen-history`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(genEntry) }).catch(() => {})
+            // 同一提示词合并到一条记录
+            const existIdx = prev.findIndex(g => g.prompt === result.prompt)
+            let updated
+            if (existIdx >= 0) {
+              const exist = prev[existIdx]
+              const merged = { ...exist, images: [...(exist.images || []), ...queryData.images], time: new Date().toLocaleString('zh-CN') }
+              updated = [merged, ...prev.filter((_, i) => i !== existIdx)].slice(0, 100)
+              fetch(`${API_BASE}/api/gen-history`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(merged) }).catch(() => {})
+            } else {
+              const genEntry = {
+                id: Date.now(),
+                title: title.trim() || '未命名',
+                prompt: result.prompt,
+                images: queryData.images,
+                size: `${resolution}-${ratio}`,
+                time: new Date().toLocaleString('zh-CN'),
+              }
+              updated = [genEntry, ...prev].slice(0, 100)
+              fetch(`${API_BASE}/api/gen-history`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(genEntry) }).catch(() => {})
+            }
             localStorage.setItem('pico_gen_history', JSON.stringify(updated))
             return updated
           })
@@ -497,6 +526,34 @@ export default function Analyzer() {
                 </button>
                 {settingsOpen && (
                   <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
+                    {/* 风格参考图 - 放最上面 */}
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">风格参考图</label>
+                      <div className="flex items-start gap-2 flex-wrap">
+                        {refImages.map((ref, i) => (
+                          <div key={i} className="relative group/ref">
+                            <img src={ref.url} alt="" className="w-20 h-20 rounded-lg object-cover border border-border" />
+                            <button onClick={() => setRefImages(prev => prev.filter((_, j) => j !== i))}
+                              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-foreground text-background text-xs flex items-center justify-center opacity-0 group-hover/ref:opacity-100 transition-opacity shadow">×</button>
+                          </div>
+                        ))}
+                        <label className="flex flex-col items-center justify-center w-20 h-20 rounded-lg border-2 border-dashed border-border text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors gap-1">
+                          <ImageIcon className="h-5 w-5" />
+                          <span className="text-[10px]">上传参考</span>
+                          <input type="file" accept="image/*" multiple className="hidden" onChange={e => {
+                            Array.from(e.target.files || []).forEach(file => {
+                              const reader = new FileReader()
+                              reader.onload = () => setRefImages(prev => [...prev, { url: reader.result, prompt: '' }])
+                              reader.readAsDataURL(file)
+                            })
+                            e.target.value = ''
+                          }} />
+                        </label>
+                        {refImages.length > 0 && (
+                          <button onClick={() => setRefImages([])} className="text-xs text-muted-foreground hover:text-foreground self-end pb-1">清除全部</button>
+                        )}
+                      </div>
+                    </div>
                     <div>
                       <label className="text-sm font-medium text-muted-foreground mb-2 block">主色</label>
                       <div className="flex flex-wrap gap-2.5">
@@ -554,11 +611,13 @@ export default function Analyzer() {
                       </div>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground mb-2 block">自动生图</label>
-                      <button onClick={() => setAutoGen(!autoGen)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoGen ? 'bg-primary' : 'bg-muted'}`}>
-                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${autoGen ? 'translate-x-6' : 'translate-x-1'}`} />
-                      </button>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground mb-2 block">自动生图</label>
+                        <button onClick={() => setAutoGen(!autoGen)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoGen ? 'bg-primary' : 'bg-muted'}`}>
+                          <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${autoGen ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -569,128 +628,205 @@ export default function Analyzer() {
 
     {/* 中栏: 分析结果 + 生图 */}
     <div className="space-y-4 min-h-[60vh]">
-      {result ? (
+      {/* 统一提示词编辑区 */}
+      {result && (
         <>
-          <Card>
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold">提示词</div>
-                <div className="flex gap-1">
-                  {editingPrompt ? (
-                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => {
-                      setResult({ ...result, prompt: editPromptText })
-                      setEditingPrompt(false)
-                      translatePrompt(editPromptText)
-                    }}>保存</Button>
-                  ) : (
-                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => {
-                      setEditPromptText(result.prompt)
-                      setEditingPrompt(true)
-                    }}>编辑</Button>
-                  )}
-                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => copyText(result.prompt)}>
-                    <Copy className="h-3 w-3 mr-1" />复制
-                  </Button>
-                </div>
-              </div>
-              {editingPrompt ? (
-                <Textarea value={editPromptText} onChange={e => setEditPromptText(e.target.value)}
-                  className="text-sm min-h-[80px]" rows={4} />
-              ) : (
-                <div className="space-y-2">
-                  <div className="bg-muted p-3 rounded-lg text-sm">
-                    <div className="text-xs text-muted-foreground mb-1">中文</div>
-                    {result.prompt}
-                  </div>
-                  <div className="bg-muted p-3 rounded-lg text-sm">
-                    <div className="text-xs text-muted-foreground mb-1">English</div>
-                    {translating ? <span className="text-muted-foreground">翻译中...</span> : (enPrompt || <span className="text-muted-foreground">等待翻译</span>)}
-                  </div>
-                </div>
-              )}
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">推荐元素</div>
-                <div className="flex flex-wrap gap-1">
-                  {result.elements.map((e, i) => <Badge key={i} className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/15">{e}</Badge>)}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <label className="text-xs text-muted-foreground mb-1.5 block">比例</label>
-                  <div className="flex gap-1">
-                    {RATIO_OPTIONS.map(r => (
-                      <button key={r.value} onClick={() => setRatio(r.value)}
-                        className={`px-2.5 py-1 rounded-md text-xs transition-all ${ratio === r.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1.5 block">清晰度</label>
-                  <div className="flex gap-1">
-                    {RES_OPTIONS.map(r => (
-                      <button key={r.value} onClick={() => setResolution(r.value)}
-                        className={`px-2.5 py-1 rounded-md text-xs transition-all ${resolution === r.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <Button onClick={generateImage} disabled={generating} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <ImageIcon className="h-4 w-4 mr-1" />}
-                {generating ? '生成中...' : '生成图片'}
-              </Button>
-              {generatedImages.length > 0 ? (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 gap-2">
-                    {generatedImages.map((url, i) => (
-                      <div key={i} className="relative group">
-                        <a href={url} target="_blank" rel="noopener noreferrer">
-                          <img src={url} alt={`生成图片 ${i + 1}`} className="rounded-lg w-full hover:opacity-90 transition-opacity" />
-                        </a>
-                        <button onClick={() => downloadImage(url, `${title || 'pico'}-${i + 1}.png`)}
-                          className="absolute top-2 right-2 p-2.5 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70">
-                          <Download className="h-5 w-5" />
-                        </button>
+          {/* 提示词编辑区 */}
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            {/* 参考图 + 提示词输入区 */}
+            <div className="p-4 space-y-3">
+              {/* 参考图行 */}
+              {refImages.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <div className="flex gap-1.5 flex-wrap">
+                    {refImages.map((ref, i) => (
+                      <div key={i} className="relative group/ref">
+                        <img src={ref.url} alt="" className="w-16 h-16 rounded-lg object-cover border border-border" />
+                        <button onClick={() => setRefImages(prev => prev.filter((_, j) => j !== i))}
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-foreground text-background text-xs flex items-center justify-center opacity-0 group-hover/ref:opacity-100 transition-opacity shadow">×</button>
                       </div>
                     ))}
+                    <label className="flex items-center justify-center w-16 h-16 rounded-lg border-2 border-dashed border-border text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors">
+                      <span className="text-2xl leading-none">+</span>
+                      <input type="file" accept="image/*" multiple className="hidden" onChange={e => {
+                        Array.from(e.target.files || []).forEach(file => {
+                          const reader = new FileReader()
+                          reader.onload = () => setRefImages(prev => [...prev, { url: reader.result, prompt: '' }])
+                          reader.readAsDataURL(file)
+                        })
+                        e.target.value = ''
+                      }} />
+                    </label>
                   </div>
-                  {generatedImages.length > 1 && (
-                    <Button variant="outline" size="sm" className="w-full" onClick={() => downloadAll(generatedImages, title || 'pico')}>
-                      <Download className="h-3 w-3 mr-1" />全部下载 ({generatedImages.length}张)
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <div className="w-full aspect-square rounded-lg border-2 border-dashed border-border flex items-center justify-center">
-                  {generating ? (
-                    <div className="text-center space-y-2">
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
-                      <span className="text-sm text-muted-foreground">生成中...</span>
-                    </div>
-                  ) : (
-                    <div className="text-center space-y-1">
-                      <ImageIcon className="h-8 w-8 text-muted-foreground/40 mx-auto" />
-                      <span className="text-xs text-muted-foreground">图片预览</span>
-                    </div>
-                  )}
                 </div>
               )}
-            </CardContent>
-          </Card>
+              {/* 提示词文本 */}
+              {editingPrompt ? (
+                <Textarea value={editPromptText} onChange={e => setEditPromptText(e.target.value)}
+                  className="text-sm min-h-[100px] border-0 bg-transparent p-0 focus-visible:ring-0 resize-none" rows={4}
+                  placeholder="编辑提示词..." />
+              ) : (
+                <div className="text-sm leading-relaxed cursor-pointer hover:text-foreground/80 transition-colors min-h-[60px]"
+                  onClick={() => { setEditPromptText(result.prompt); setEditingPrompt(true) }}>
+                  {result.prompt}
+                </div>
+              )}
+              {/* 英文翻译 */}
+              <div className="text-xs text-muted-foreground leading-relaxed border-t border-border pt-2">
+                {translating ? '翻译中...' : (enPrompt || '等待翻译')}
+              </div>
+              {/* 推荐元素 */}
+              <div className="flex flex-wrap gap-1">
+                {result.elements.map((e, i) => <Badge key={i} className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/15">{e}</Badge>)}
+              </div>
+            </div>
+            {/* 底部控制栏 */}
+            <div className="flex items-center gap-2 px-4 py-2.5 border-t border-border bg-muted/30">
+              {/* 参考图按钮 */}
+              {refImages.length === 0 && (
+                <label className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs cursor-pointer hover:bg-muted transition-colors text-muted-foreground">
+                  <Sparkles className="h-3.5 w-3.5" />智能参考
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={e => {
+                    Array.from(e.target.files || []).forEach(file => {
+                      const reader = new FileReader()
+                      reader.onload = () => setRefImages(prev => [...prev, { url: reader.result, prompt: '' }])
+                      reader.readAsDataURL(file)
+                    })
+                    e.target.value = ''
+                  }} />
+                </label>
+              )}
+              {/* 比例 */}
+              <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-md bg-background border border-border">
+                {RATIO_OPTIONS.map(r => (
+                  <button key={r.value} onClick={() => setRatio(r.value)}
+                    className={`px-2 py-0.5 rounded text-xs transition-all ${ratio === r.value ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              {/* 清晰度 */}
+              <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-md bg-background border border-border">
+                {RES_OPTIONS.map(r => (
+                  <button key={r.value} onClick={() => setResolution(r.value)}
+                    className={`px-2 py-0.5 rounded text-xs transition-all ${resolution === r.value ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1" />
+              {/* 操作按钮 */}
+              {editingPrompt ? (
+                <Button size="sm" className="h-7 text-xs bg-primary text-primary-foreground" onClick={() => {
+                  setResult({ ...result, prompt: editPromptText })
+                  setEditingPrompt(false)
+                  translatePrompt(editPromptText)
+                }}>保存</Button>
+              ) : (
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => copyText(result.prompt)}>
+                  <Copy className="h-3 w-3 mr-1" />复制
+                </Button>
+              )}
+              <Button size="sm" disabled={generating} className="h-7 text-xs bg-primary text-primary-foreground hover:bg-primary/90" onClick={generateImage}>
+                {generating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <ImageIcon className="h-3 w-3 mr-1" />}
+                {generating ? '生成中' : '生成'}
+              </Button>
+            </div>
+          </div>
+          {/* 图片预览/结果 */}
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            {generatedImages.length > 0 ? (
+              <div className="p-4 space-y-3">
+                <div className="grid grid-cols-1 gap-2">
+                  {generatedImages.map((url, i) => (
+                    <div key={i} className="relative group">
+                      <a href={url} target="_blank" rel="noopener noreferrer">
+                        <img src={url} alt={`生成图片 ${i + 1}`} className="rounded-lg w-full hover:opacity-90 transition-opacity" />
+                      </a>
+                      <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => {
+                            const exists = refImages.some(r => r.url === url)
+                            if (exists) { setRefImages(prev => prev.filter(r => r.url !== url)); toast.info('已移除参考') }
+                            else { setRefImages(prev => [...prev, { url, prompt: result.prompt }]); toast.success('已添加为风格参考') }
+                          }}
+                          className={`p-2 rounded-lg text-white hover:bg-black/70 ${refImages.some(r => r.url === url) ? 'bg-primary' : 'bg-black/50'}`}
+                          title="添加为风格参考">
+                          <Sparkles className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => downloadImage(url, `${title || 'pico'}-${i + 1}.png`)}
+                          className="p-2 rounded-lg bg-black/50 text-white hover:bg-black/70">
+                          <Download className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {generatedImages.length > 1 && (
+                  <Button variant="outline" size="sm" className="w-full" onClick={() => downloadAll(generatedImages, title || 'pico')}>
+                    <Download className="h-3 w-3 mr-1" />全部下载 ({generatedImages.length}张)
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="w-full aspect-square flex items-center justify-center">
+                {generating ? (
+                  <div className="text-center space-y-2">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
+                    <span className="text-sm text-muted-foreground">生成中...</span>
+                  </div>
+                ) : (
+                  <div className="text-center space-y-1">
+                    <ImageIcon className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+                    <span className="text-xs text-muted-foreground">图片预览</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </>
-      ) : (
-        <Card className="h-full">
-          <CardContent className="p-8 text-center text-muted-foreground text-sm flex items-center justify-center h-full">
-            输入功能标题, 点击分析生成提示词
-          </CardContent>
-        </Card>
+      )}
+
+      {/* 生图区域 - 始终显示 */}
+      {!result && (
+        <>
+          {/* 空状态提示词区 */}
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="p-4">
+              <div className="text-sm text-muted-foreground min-h-[60px] flex items-center">输入功能标题, 回车生成提示词</div>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2.5 border-t border-border bg-muted/30">
+              <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-md bg-background border border-border">
+                {RATIO_OPTIONS.map(r => (
+                  <button key={r.value} onClick={() => setRatio(r.value)}
+                    className={`px-2 py-0.5 rounded text-xs transition-all ${ratio === r.value ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-md bg-background border border-border">
+                {RES_OPTIONS.map(r => (
+                  <button key={r.value} onClick={() => setResolution(r.value)}
+                    className={`px-2 py-0.5 rounded text-xs transition-all ${resolution === r.value ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1" />
+              <Button size="sm" disabled className="h-7 text-xs bg-primary/50 text-primary-foreground">
+                <ImageIcon className="h-3 w-3 mr-1" />生成
+              </Button>
+            </div>
+          </div>
+          {/* 空预览区 */}
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="w-full aspect-square flex items-center justify-center">
+              <div className="text-center space-y-1">
+                <ImageIcon className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+                <span className="text-xs text-muted-foreground">图片预览</span>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
 
@@ -744,10 +880,21 @@ export default function Analyzer() {
                       {g.images?.map((url, i) => (
                         <div key={i} className="relative group">
                           <img src={url} alt="" className="rounded w-full aspect-square object-cover" />
-                          <button onClick={() => downloadImage(url, `${g.title}-${i + 1}.png`)}
-                            className="absolute top-2 right-2 p-2 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70">
-                            <Download className="h-5 w-5" />
-                          </button>
+                          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => {
+                                const exists = refImages.some(r => r.url === url)
+                                if (exists) { setRefImages(prev => prev.filter(r => r.url !== url)); toast.info('已移除参考') }
+                                else { setRefImages(prev => [...prev, { url, prompt: g.prompt }]); toast.success('已添加为风格参考') }
+                              }}
+                              className={`p-1.5 rounded text-white hover:bg-black/70 ${refImages.some(r => r.url === url) ? 'bg-primary' : 'bg-black/50'}`}
+                              title="添加为风格参考">
+                              <Sparkles className="h-3 w-3" />
+                            </button>
+                            <button onClick={() => downloadImage(url, `${g.title}-${i + 1}.png`)}
+                              className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70">
+                              <Download className="h-3 w-3" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
