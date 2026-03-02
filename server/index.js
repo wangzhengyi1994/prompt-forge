@@ -1,49 +1,120 @@
 import http from 'node:http'
 
 const PORT = 3721
+const CDP_URL = 'http://127.0.0.1:18800'
 
-// Parse XHS note data from raw HTML (provided by extension or copy-paste)
-function parseXhsHtml(html) {
-  let result = { title: '', content: '', tags: [], images: [], source: '小红书' }
+// Use CDP to open a page in the existing logged-in browser and extract note data
+async function collectViaBuilder(url) {
+  // Get available targets
+  const targetsRes = await fetch(`${CDP_URL}/json/list`)
+  const targets = await targetsRes.json()
 
-  // Try __INITIAL_STATE__
-  const stateMatch = html.match(/window\.__INITIAL_STATE__\s*=\s*({.+?})\s*<\/script>/s)
-  if (stateMatch) {
-    try {
-      const jsonStr = stateMatch[1].replace(/\bundefined\b/g, 'null')
-      const state = JSON.parse(jsonStr)
-      const noteMap = state?.note?.noteDetailMap
-      if (noteMap) {
-        const firstNote = Object.values(noteMap)[0]?.note
-        if (firstNote) {
-          result.title = firstNote.title || ''
-          result.content = firstNote.desc || ''
-          result.tags = (firstNote.tagList || []).map(t => t.name).filter(Boolean)
-          result.images = (firstNote.imageList || []).map(img => img.urlDefault || img.url).filter(Boolean)
-          return result
-        }
-      }
-    } catch (e) {
-      console.error('Parse __INITIAL_STATE__ failed:', e.message)
-    }
+  // Find an existing XHS tab or create new one
+  let target = targets.find(t => t.url?.includes('xiaohongshu.com/explore') && !t.url.includes('/404'))
+
+  if (!target) {
+    // Create a new tab
+    const newRes = await fetch(`${CDP_URL}/json/new?${encodeURIComponent('https://www.xiaohongshu.com/explore')}`)
+    target = await newRes.json()
+    await sleep(2000)
   }
 
-  // Fallback: meta tags
-  const ogTitle = html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]*)"/)
-  const ogDesc = html.match(/<meta[^>]*(?:property="og:description"|name="description")[^>]*content="([^"]*)"/)
-  const ogImage = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]*)"/)
+  // Connect via WebSocket
+  const ws = await connectWs(target.webSocketDebuggerUrl)
 
-  result.title = ogTitle?.[1] || ''
-  result.content = ogDesc?.[1] || ''
-  if (ogImage?.[1]) result.images = [ogImage[1]]
+  try {
+    // Navigate to the note URL
+    await cdpSend(ws, 'Page.navigate', { url })
+    await sleep(3000)
 
-  const hashTags = result.content.match(/#([^#\s]+)/g)
-  if (hashTags) result.tags = hashTags.map(t => t.replace('#', ''))
+    // Extract data via JS evaluation
+    const result = await cdpSend(ws, 'Runtime.evaluate', {
+      expression: `(function() {
+        try {
+          // Check if we got 404
+          if (location.href.includes('/404')) return JSON.stringify({ error: '笔记不存在或链接已失效' });
 
-  return result
+          var scripts = document.querySelectorAll('script');
+          for (var i = 0; i < scripts.length; i++) {
+            var m = scripts[i].textContent.match(/window\\.__INITIAL_STATE__\\s*=\\s*({.+})/s);
+            if (m) {
+              var j = m[1].replace(/\\bundefined\\b/g, 'null');
+              var state = JSON.parse(j);
+              var noteMap = state && state.note && state.note.noteDetailMap;
+              if (noteMap) {
+                var key = Object.keys(noteMap)[0];
+                if (key) {
+                  var note = noteMap[key].note || noteMap[key];
+                  return JSON.stringify({
+                    title: note.title || '',
+                    content: note.desc || '',
+                    tags: (note.tagList || []).map(function(t) { return t.name || t; }).filter(Boolean),
+                    images: (note.imageList || []).map(function(i) { return i.urlDefault || i.url || ''; }).filter(Boolean),
+                    source: '小红书',
+                    sourceUrl: location.href
+                  });
+                }
+              }
+            }
+          }
+
+          // Fallback: DOM extraction
+          var title = '';
+          var titleEl = document.querySelector('#detail-title') || document.querySelector('.title');
+          if (titleEl) title = titleEl.textContent.trim();
+          var descEl = document.querySelector('#detail-desc .note-text') || document.querySelector('.desc');
+          var content = descEl ? descEl.textContent.trim() : '';
+          var ogTitle = document.querySelector('meta[property="og:title"]');
+          var ogDesc = document.querySelector('meta[property="og:description"]');
+          if (!title && ogTitle) title = ogTitle.content;
+          if (!content && ogDesc) content = ogDesc.content;
+
+          if (title || content) {
+            return JSON.stringify({ title: title, content: content, tags: [], images: [], source: '小红书', sourceUrl: location.href });
+          }
+
+          return JSON.stringify({ error: '无法从页面提取内容' });
+        } catch(e) { return JSON.stringify({ error: e.message }); }
+      })()`,
+      returnByValue: true,
+    })
+
+    const data = JSON.parse(result.result?.value || '{"error":"eval failed"}')
+    return data
+  } finally {
+    ws.close()
+  }
 }
 
-// Parse plain text (user copy-pasted note content)
+// Simple WebSocket CDP client
+function connectWs(wsUrl) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(wsUrl)
+    ws._id = 1
+    ws._callbacks = {}
+    ws.onopen = () => resolve(ws)
+    ws.onerror = (e) => reject(e)
+    ws.onmessage = (msg) => {
+      const data = JSON.parse(msg.data)
+      if (data.id && ws._callbacks[data.id]) {
+        ws._callbacks[data.id](data.result)
+        delete ws._callbacks[data.id]
+      }
+    }
+  })
+}
+
+function cdpSend(ws, method, params = {}) {
+  return new Promise((resolve) => {
+    const id = ws._id++
+    ws._callbacks[id] = resolve
+    ws.send(JSON.stringify({ id, method, params }))
+  })
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
+
+// Parse plain text
 function parseText(text) {
   const lines = text.trim().split('\n').filter(Boolean)
   const title = lines[0] || ''
@@ -67,20 +138,18 @@ const server = http.createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const payload = JSON.parse(body)
-
         let result
-        if (payload.html) {
-          // Extension sends raw HTML
-          result = parseXhsHtml(payload.html)
+
+        if (payload.url && (payload.url.includes('xiaohongshu.com') || payload.url.includes('xhslink.com'))) {
+          // Use browser automation
+          result = await collectViaBuilder(payload.url)
         } else if (payload.text) {
-          // User pastes plain text
           result = parseText(payload.text)
         } else if (payload.data) {
-          // Extension sends pre-parsed data
           result = { ...payload.data, source: '小红书' }
         } else {
           res.writeHead(400, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: '请提供 html, text, 或 data 字段' }))
+          res.end(JSON.stringify({ error: '请提供 url, text, 或 data' }))
           return
         }
 
@@ -89,7 +158,7 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {
         console.error('Collect error:', e)
         res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: '解析失败: ' + e.message }))
+        res.end(JSON.stringify({ error: '采集失败: ' + e.message }))
       }
     })
     return
@@ -99,4 +168,4 @@ const server = http.createServer(async (req, res) => {
   res.end(JSON.stringify({ error: 'Not found' }))
 })
 
-server.listen(PORT, () => console.log(`XHS Collector running on http://localhost:${PORT}`))
+server.listen(PORT, () => console.log(`XHS Collector (browser mode) running on http://localhost:${PORT}`))
