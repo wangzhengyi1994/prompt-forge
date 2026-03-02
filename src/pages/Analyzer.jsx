@@ -269,25 +269,25 @@ export default function Analyzer() {
 
         <TabsContent value="single" className="space-y-4">
           <Card>
-            <CardContent className="p-4 space-y-3">
+            <CardContent className="p-6 space-y-5">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">主色</label>
-                <div className="flex flex-wrap gap-1.5">
+                <label className="text-sm font-medium text-muted-foreground mb-2 block">主色</label>
+                <div className="flex flex-wrap gap-2.5">
                   {COLOR_OPTIONS.primary.map(c => (
                     <button key={c.value} onClick={() => setPrimaryColor(c.value)}
-                      className={`w-7 h-7 rounded-full transition-all ${primaryColor === c.value ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105'} ${c.border ? 'border border-border' : ''}`}
+                      className={`w-9 h-9 rounded-full transition-all ${primaryColor === c.value ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105'} ${c.border ? 'border border-border' : ''}`}
                       style={{ backgroundColor: c.color }} title={c.label} />
                   ))}
                 </div>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">点缀色 (可多选)</label>
-                <div className="flex flex-wrap gap-1.5">
+                <label className="text-sm font-medium text-muted-foreground mb-2 block">点缀色 (可多选)</label>
+                <div className="flex flex-wrap gap-2.5">
                   {COLOR_OPTIONS.accent.map(c => {
                     const active = accentColors.includes(c.value)
                     return (
                       <button key={c.value} onClick={() => setAccentColors(prev => active ? prev.filter(x => x !== c.value) : [...prev, c.value])}
-                        className={`w-7 h-7 rounded-full transition-all ${active ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105'}`}
+                        className={`w-9 h-9 rounded-full transition-all ${active ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105'}`}
                         style={{ backgroundColor: c.color }} title={c.label} />
                     )
                   })}
@@ -299,11 +299,11 @@ export default function Analyzer() {
                 )}
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">质感</label>
-                <div className="flex flex-wrap gap-1.5">
+                <label className="text-sm font-medium text-muted-foreground mb-2 block">质感</label>
+                <div className="flex flex-wrap gap-2">
                   {TEXTURE_OPTIONS.map(t => (
                     <button key={t.value} onClick={() => setTexture(t.value)}
-                      className={`px-2.5 py-1 rounded-md text-xs transition-all ${texture === t.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
+                      className={`px-3 py-1.5 rounded-lg text-sm transition-all ${texture === t.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
                       {t.icon} {t.label}
                     </button>
                   ))}
@@ -311,11 +311,11 @@ export default function Analyzer() {
               </div>
               <Separator />
               <div>
-                <label className="text-xs text-muted-foreground">功能标题</label>
+                <label className="text-sm font-medium text-muted-foreground">功能标题</label>
                 <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="如：云存储管理" />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">功能描述</label>
+                <label className="text-sm font-medium text-muted-foreground">功能描述</label>
                 <Textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="描述该功能的用途..." rows={3} />
               </div>
               <Button onClick={analyze} disabled={loading}>
