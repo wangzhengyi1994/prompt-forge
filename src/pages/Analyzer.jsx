@@ -1,3 +1,4 @@
+import { copyToClipboard } from '@/lib/clipboard'
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -171,7 +172,7 @@ export default function Analyzer() {
     setDnaResult(extractDNA(dnaInput))
   }
 
-  const copyText = (t) => { navigator.clipboard.writeText(t); toast.success('已复制') }
+  const copyText = (t) => { copyToClipboard(t); toast.success('已复制') }
 
   const DNA_EXAMPLES = [
     '科技感透明图标，等轴侧视角，透明材质搭配蓝白光效。16K分辨率，Blender渲染，现代简约风格。干净背景，无底座。',

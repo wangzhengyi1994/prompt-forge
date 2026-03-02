@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, Globe, Copy } from 'lucide-react'
+import { Search, Globe, Copy, Combine } from 'lucide-react'
 import { toast } from 'sonner'
+import { copyToClipboard } from '@/lib/clipboard'
 
 const DICT = {
   材质词: [
@@ -114,6 +115,34 @@ const DICT = {
     { zh: '辉光效果', en: 'glow effect' },
     { zh: '焦散效果', en: 'caustics effect' },
   ],
+  构图词: [
+    { zh: '居中构图', en: 'centered composition' },
+    { zh: '对称构图', en: 'symmetrical composition' },
+    { zh: '三分法构图', en: 'rule of thirds' },
+    { zh: '黄金比例', en: 'golden ratio' },
+    { zh: '紧凑布局', en: 'compact layout' },
+    { zh: '留白构图', en: 'whitespace composition' },
+    { zh: '满版构图', en: 'full-bleed composition' },
+    { zh: '放射构图', en: 'radial composition' },
+    { zh: '层叠排列', en: 'stacked arrangement' },
+    { zh: '网格排列', en: 'grid arrangement' },
+    { zh: '散点构图', en: 'scattered composition' },
+    { zh: '框架构图', en: 'frame composition' },
+  ],
+  氛围词: [
+    { zh: '未来感', en: 'futuristic' },
+    { zh: '治愈感', en: 'healing vibe' },
+    { zh: '高级感', en: 'premium feel' },
+    { zh: '氛围感', en: 'atmospheric' },
+    { zh: '沉浸式', en: 'immersive' },
+    { zh: '空灵感', en: 'ethereal' },
+    { zh: '工业风', en: 'industrial' },
+    { zh: '有机感', en: 'organic feel' },
+    { zh: '几何感', en: 'geometric feel' },
+    { zh: '动态感', en: 'dynamic feel' },
+    { zh: '静谧感', en: 'serene' },
+    { zh: '复古怀旧', en: 'retro nostalgic' },
+  ],
 }
 
 export default function Dictionary() {
@@ -124,7 +153,7 @@ export default function Dictionary() {
   const totalCount = useMemo(() => Object.values(DICT).reduce((s, arr) => s + arr.length, 0), [])
 
   const copy = (text) => {
-    navigator.clipboard.writeText(text)
+    copyToClipboard(text)
     toast.success(`已复制: ${text}`)
   }
 
@@ -139,8 +168,15 @@ export default function Dictionary() {
   const copySelected = () => {
     if (selected.length === 0) return
     const text = selected.map(w => showEn ? w.en : w.zh).join(', ')
-    navigator.clipboard.writeText(text)
+    copyToClipboard(text)
     toast.success(`已复制 ${selected.length} 个关键词`)
+  }
+
+  const copyAsPromptSnippet = () => {
+    if (selected.length === 0) return
+    const text = selected.map(w => showEn ? w.en : w.zh).join('，')
+    copyToClipboard(text)
+    toast.success('已复制为提示词片段')
   }
 
   const clearSelected = () => setSelected([])
@@ -169,7 +205,10 @@ export default function Dictionary() {
             ))}
           </div>
           <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={copySelected}>
-            <Copy className="h-3 w-3" />复制
+            <Copy className="h-3 w-3" />逗号分隔
+          </Button>
+          <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={copyAsPromptSnippet}>
+            <Combine className="h-3 w-3" />拼接复制
           </Button>
           <Button variant="ghost" size="sm" className="text-xs" onClick={clearSelected}>清空</Button>
         </div>

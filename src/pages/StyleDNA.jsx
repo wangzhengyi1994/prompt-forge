@@ -1,3 +1,4 @@
+import { copyToClipboard } from '@/lib/clipboard'
 import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -153,7 +154,7 @@ export default function StyleDNA() {
   const fragment = useMemo(() => dnaToPromptFragment(dna), [dna])
 
   const copyText = (text, key) => {
-    navigator.clipboard.writeText(text)
+    copyToClipboard(text)
     setCopied(key)
     toast.success('已复制')
     setTimeout(() => setCopied(null), 1500)

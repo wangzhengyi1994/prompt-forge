@@ -1,3 +1,4 @@
+import { copyToClipboard } from '@/lib/clipboard'
 import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -210,7 +211,7 @@ export default function Scorer() {
                   <p className="text-muted-foreground mt-1">{grade.text}</p>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(input); toast.success('已复制') }}>
+                  <Button size="sm" variant="outline" onClick={() => { copyToClipboard(input); toast.success('已复制') }}>
                     <Copy className="w-3 h-3 mr-1" />复制
                   </Button>
                   {totalScore < 90 && (

@@ -1,3 +1,4 @@
+import { copyToClipboard } from '@/lib/clipboard'
 import { useState, useEffect } from 'react'
 import { getLibrary, deleteFromLibrary, saveLibrary, exportLibrary, importLibrary } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,7 +38,7 @@ function DetailDialog({ item, onClose, onDelete, onUpdate }) {
   if (!item) return null
 
   const copyText = (text, key) => {
-    navigator.clipboard.writeText(text)
+    copyToClipboard(text)
     setCopied(key)
     toast.success('已复制到剪贴板')
     setTimeout(() => setCopied(null), 1500)

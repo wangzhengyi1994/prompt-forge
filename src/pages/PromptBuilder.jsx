@@ -1,3 +1,4 @@
+import { copyToClipboard } from '@/lib/clipboard'
 import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -96,7 +97,7 @@ export default function PromptBuilder() {
   const [copied, setCopied] = useState(false)
 
   const copyPrompt = () => {
-    navigator.clipboard.writeText(prompt)
+    copyToClipboard(prompt)
     setCopied(true)
     toast.success('已复制')
     setTimeout(() => setCopied(false), 1500)

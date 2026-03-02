@@ -1,3 +1,4 @@
+import { copyToClipboard } from '@/lib/clipboard'
 import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -142,7 +143,7 @@ export default function Translator() {
   const matches = useMemo(() => findMatches(input), [input])
 
   const copy = (text) => {
-    navigator.clipboard.writeText(text)
+    copyToClipboard(text)
     toast.success('已复制')
   }
 
