@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { addToLibrary } from '@/lib/store'
-import { Loader2, Download, Save, Plus, X, Plug, ClipboardPaste, FileText } from 'lucide-react'
+import { Loader2, Download, Save, Plus, X, Plug, ClipboardPaste, FileText, Layers, Check, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function Collect() {
@@ -20,6 +20,10 @@ export default function Collect() {
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState([])
   const [notes, setNotes] = useState('')
+  // batch
+  const [batchText, setBatchText] = useState('')
+  const [batchItems, setBatchItems] = useState([])
+  const [batchSaved, setBatchSaved] = useState(new Set())
   // extension
   const [extData, setExtData] = useState(null)
 
@@ -83,6 +87,53 @@ export default function Collect() {
     resetFn?.()
   }
 
+  const parseBatch = () => {
+    if (!batchText.trim()) return
+    const blocks = batchText.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean)
+    const items = blocks.map((block, i) => {
+      const lines = block.split('\n').filter(Boolean)
+      const tagMatches = block.match(/#([^#\s]+)/g)
+      const contentLines = lines.filter(l => !l.match(/^#[^#]/))
+      return {
+        id: Date.now() + i,
+        title: lines[0]?.replace(/#\S+/g, '').trim().slice(0, 40) || `提示词 ${i + 1}`,
+        content: contentLines.join('\n').replace(/#\S+/g, '').trim(),
+        tags: tagMatches ? tagMatches.map(t => t.replace('#', '')) : [],
+      }
+    })
+    setBatchItems(items)
+    setBatchSaved(new Set())
+    toast.success(`解析出 ${items.length} 条提示词`)
+  }
+
+  const saveBatchItem = (item) => {
+    addToLibrary({
+      title: item.title,
+      prompt: item.content,
+      tags: item.tags,
+      source: '批量采集',
+      structure: '批量采集',
+      template: item.content,
+      thumbnail: `linear-gradient(${Math.random() * 360}deg, hsl(${Math.random()*360},70%,60%), hsl(${Math.random()*360},70%,60%))`,
+    })
+    setBatchSaved(prev => new Set([...prev, item.id]))
+  }
+
+  const saveBatchAll = () => {
+    let count = 0
+    for (const item of batchItems) {
+      if (!batchSaved.has(item.id)) {
+        saveBatchItem(item)
+        count++
+      }
+    }
+    toast.success(`已保存 ${count} 条到素材库`)
+  }
+
+  const removeBatchItem = (id) => {
+    setBatchItems(prev => prev.filter(it => it.id !== id))
+  }
+
   const addTag = () => {
     const t = tagInput.trim()
     if (t && !tags.includes(t)) setTags([...tags, t])
@@ -136,6 +187,7 @@ export default function Collect() {
         <TabsList>
           <TabsTrigger value="paste">粘贴采集</TabsTrigger>
           <TabsTrigger value="extension">插件采集</TabsTrigger>
+          <TabsTrigger value="batch">批量采集</TabsTrigger>
           <TabsTrigger value="manual">手动录入</TabsTrigger>
         </TabsList>
 
@@ -164,6 +216,75 @@ export default function Collect() {
               onSave={() => saveData(pasteResult, () => { setPasteResult(null); setPasteText('') })}
               onClear={() => { setPasteResult(null); setPasteText('') }}
             />
+          )}
+        </TabsContent>
+
+        <TabsContent value="batch" className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Layers className="h-4 w-4" />批量粘贴</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-xs text-muted-foreground">
+                粘贴多条提示词,用空行分隔每条,支持 #标签 自动提取
+              </div>
+              <Textarea
+                placeholder={"第一条提示词内容\n#标签1 #标签2\n\n第二条提示词内容\n#标签3\n\n第三条..."}
+                value={batchText}
+                onChange={e => setBatchText(e.target.value)}
+                rows={8}
+              />
+              <div className="flex gap-2">
+                <Button onClick={parseBatch} disabled={!batchText.trim()}>
+                  <Layers className="h-4 w-4 mr-1" />解析分割
+                </Button>
+                {batchItems.length > 0 && (
+                  <Button variant="outline" onClick={() => { setBatchText(''); setBatchItems([]); setBatchSaved(new Set()) }}>清空</Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {batchItems.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">解析结果 ({batchItems.length} 条)</CardTitle>
+                  <Button size="sm" onClick={saveBatchAll} disabled={batchSaved.size === batchItems.length}>
+                    <Save className="h-3 w-3 mr-1" />全部保存 ({batchItems.length - batchSaved.size})
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {batchItems.map(item => (
+                  <div key={item.id} className={`p-3 rounded-lg border transition-colors ${batchSaved.has(item.id) ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-muted/50 border-border'}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{item.title}</div>
+                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.content}</div>
+                        {item.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {item.tags.map(t => <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        {batchSaved.has(item.id) ? (
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-emerald-500" disabled>
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : (
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveBatchItem(item)}>
+                            <Save className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeBatchItem(item.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 
