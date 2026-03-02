@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
-// Select removed - fixed 3D icon style
-import { Loader2, Sparkles, Copy, Dna, Zap } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Loader2, Sparkles, Copy, Dna, Zap, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 
 // 语义分类: triggers(触发词) → elements(推荐元素) + label(显示名)
@@ -44,6 +44,30 @@ const SEMANTIC_CATEGORIES = [
 const ELEMENT_MAP = Object.fromEntries(
   SEMANTIC_CATEGORIES.map(c => [c.triggers[0], c.elements])
 )
+
+// 颜色预设
+const COLOR_OPTIONS = {
+  primary: [
+    { label: '白色', value: '白色', color: '#ffffff', border: true },
+    { label: '蓝色', value: '蓝色', color: '#3B82F6' },
+    { label: '紫色', value: '紫色', color: '#8B5CF6' },
+    { label: '绿色', value: '绿色', color: '#22C55E' },
+    { label: '青色', value: '青色', color: '#06B6D4' },
+    { label: '灰色', value: '灰色', color: '#6B7280' },
+    { label: '黑色', value: '黑色', color: '#1F2937' },
+  ],
+  accent: [
+    { label: '蓝色', value: '蓝色', color: '#3B82F6' },
+    { label: '橙色', value: '橙色', color: '#F97316' },
+    { label: '红色', value: '红色', color: '#EF4444' },
+    { label: '黄色', value: '黄色', color: '#EAB308' },
+    { label: '粉色', value: '粉色', color: '#EC4899' },
+    { label: '紫色', value: '紫色', color: '#8B5CF6' },
+    { label: '绿色', value: '绿色', color: '#22C55E' },
+    { label: '青色', value: '青色', color: '#06B6D4' },
+    { label: '金色', value: '金色', color: '#D4A017' },
+  ],
+}
 
 const STYLE_PRESETS = {
   '科技简约': { style: '科技', material: '磨砂质感', color: '蓝白配色', view: '等轴侧视角', bg: '纯白背景', renderer: 'Blender渲染', res: '8K分辨率', constraint: '无底座，减少细节' },
@@ -167,9 +191,7 @@ function analyzeText(title, desc) {
   // 去重
   const uniqueElements = [...new Set(elements)].slice(0, 4)
 
-  const prompt = `3D图标，主体为${uniqueElements.join(' + ')}，磨砂质感搭配柔和渐变配色，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座，减少细节。`
-
-  return { elements: uniqueElements, reasons, prompt }
+  return { elements: uniqueElements, reasons }
 }
 
 export default function Analyzer() {
@@ -193,12 +215,15 @@ export default function Analyzer() {
     }, 600)
   }
 
+  const [batchStyle, setBatchStyle] = useState('科技简约')
+
   const batchAnalyze = () => {
     const lines = batchInput.trim().split('\n').filter(Boolean)
     if (!lines.length) { toast.error('请输入内容'); return }
     const results = lines.map(line => {
       const [t, d = ''] = line.split('|')
-      return { title: t.trim(), ...analyzeText(t, d) }
+      const analysis = analyzeText(t, d)
+      return { title: t.trim(), ...analysis, prompt: buildPromptWithStyle(analysis.elements, batchStyle) }
     })
     setBatchResults(results)
     toast.success(`已分析 ${results.length} 条`)
@@ -229,6 +254,35 @@ export default function Analyzer() {
         <TabsContent value="single" className="space-y-4">
           <Card>
             <CardContent className="p-4 space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">主色</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {COLOR_OPTIONS.primary.map(c => (
+                    <button key={c.value} onClick={() => setPrimaryColor(c.value)}
+                      className={`w-7 h-7 rounded-full transition-all ${primaryColor === c.value ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105'} ${c.border ? 'border border-border' : ''}`}
+                      style={{ backgroundColor: c.color }} title={c.label} />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">点缀色 (可多选)</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {COLOR_OPTIONS.accent.map(c => {
+                    const active = accentColors.includes(c.value)
+                    return (
+                      <button key={c.value} onClick={() => setAccentColors(prev => active ? prev.filter(x => x !== c.value) : [...prev, c.value])}
+                        className={`w-7 h-7 rounded-full transition-all ${active ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105'}`}
+                        style={{ backgroundColor: c.color }} title={c.label} />
+                    )
+                  })}
+                </div>
+                {(primaryColor || accentColors.length > 0) && (
+                  <div className="text-xs text-muted-foreground mt-1.5">
+                    {primaryColor}{accentColors.length > 0 ? ` + ${accentColors.join(' + ')}` : ''}
+                  </div>
+                )}
+              </div>
+              <Separator />
               <div>
                 <label className="text-xs text-muted-foreground">功能标题</label>
                 <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="如：云存储管理" />
@@ -265,9 +319,18 @@ export default function Analyzer() {
                 </div>
                 <Separator />
                 <div>
-                  <div className="text-xs text-muted-foreground mb-1">建议提示词</div>
-                  <div className="bg-muted p-3 rounded-md text-sm">{result.prompt}</div>
-                  <Button variant="ghost" size="sm" className="mt-1" onClick={() => copyText(result.prompt)}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs text-muted-foreground">建议提示词</div>
+                    <div className="flex gap-1 flex-wrap">
+                      {Object.keys(STYLE_PRESETS).map(k => (
+                        <Badge key={k} variant={k === styleKey ? 'default' : 'outline'} className={`text-xs cursor-pointer ${k === styleKey ? '' : 'hover:bg-accent'}`} onClick={() => setStyleKey(k)}>
+                          {k}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-muted p-3 rounded-md text-sm">{buildPromptWithStyle(result.elements, styleKey)}</div>
+                  <Button variant="ghost" size="sm" className="mt-1" onClick={() => copyText(buildPromptWithStyle(result.elements, styleKey))}>
                     <Copy className="h-3 w-3 mr-1" />复制
                   </Button>
                 </div>
@@ -283,7 +346,18 @@ export default function Analyzer() {
                 <label className="text-xs text-muted-foreground">批量输入(每行一条,格式: 标题|描述)</label>
                 <Textarea value={batchInput} onChange={e => setBatchInput(e.target.value)} placeholder={'云存储管理|管理云端文件和备份\nAI智能客服|基于AI的自动客服系统\n安全中心|账户安全和隐私设置'} rows={6} />
               </div>
-              <Button onClick={batchAnalyze}><Sparkles className="h-4 w-4 mr-1" />批量分析</Button>
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <label className="text-xs text-muted-foreground">目标风格</label>
+                  <Select value={batchStyle} onValueChange={setBatchStyle}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.keys(STYLE_PRESETS).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={batchAnalyze}><Sparkles className="h-4 w-4 mr-1" />批量分析</Button>
+              </div>
             </CardContent>
           </Card>
 
