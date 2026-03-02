@@ -51,7 +51,7 @@ export default function App() {
   const sidebarContent = (mobile = false) => (
     <>
       <div className="h-14 flex items-center px-4 border-b border-border gap-2">
-        {(mobile || !collapsed) && <span className="font-bold text-lg text-white">Pico</span>}
+        {(mobile || !collapsed) && <span className="font-bold text-lg text-foreground">Pico</span>}
         {mobile ? (
           <Button variant="ghost" size="icon" className="ml-auto h-8 w-8" onClick={() => setMobileOpen(false)}>
             <X className="h-4 w-4" />
