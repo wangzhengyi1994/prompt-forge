@@ -226,8 +226,7 @@ const SEED_DATA = [
 export function getLibrary() {
   const stored = localStorage.getItem(STORAGE_KEY)
   if (stored) return JSON.parse(stored)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_DATA))
-  return SEED_DATA
+  return []
 }
 
 export function saveLibrary(items) {
