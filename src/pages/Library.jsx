@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { Grid3X3, List, Search, Trash2, Copy, Check, Pencil, X, Tag, Layers, FileText, LayoutTemplate, Plus, Download, Upload } from 'lucide-react'
+import { Grid3X3, List, Search, Trash2, Copy, Check, Pencil, X, Tag, Layers, FileText, LayoutTemplate, Plus, Download, Upload, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 
 const TABS = [
@@ -232,6 +232,22 @@ function DetailDialog({ item, onClose, onDelete, onUpdate }) {
   )
 }
 
+function QuickCopyButton({ text, className = '' }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = (e) => {
+    e.stopPropagation()
+    copyToClipboard(text)
+    setCopied(true)
+    toast.success('提示词已复制')
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <Button variant="secondary" size="icon" className={`h-7 w-7 shrink-0 ${className}`} onClick={handleCopy} title="复制提示词">
+      {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+    </Button>
+  )
+}
+
 export default function Library() {
   const [items, setItems] = useState([])
   const [search, setSearch] = useState('')
@@ -320,9 +336,13 @@ export default function Library() {
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
               </div>
               <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm truncate">{item.title}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-sm truncate flex-1">{item.title}</CardTitle>
+                  <QuickCopyButton text={item.prompt} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
               </CardHeader>
               <CardContent className="p-4 pt-0 space-y-2">
+                <div className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{item.prompt}</div>
                 <div className="flex flex-wrap gap-1">
                   {item.tags?.slice(0, 3).map(t => <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>)}
                   {item.tags?.length > 3 && <Badge variant="outline" className="text-xs">+{item.tags.length - 3}</Badge>}
@@ -351,6 +371,7 @@ export default function Library() {
                     {item.tags?.slice(0, 4).map(t => <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>)}
                   </div>
                 </div>
+                <QuickCopyButton text={item.prompt} />
                 <div className="text-xs text-muted-foreground shrink-0">{item.date}</div>
               </div>
             </Card>
