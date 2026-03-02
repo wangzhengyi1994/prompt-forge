@@ -69,6 +69,17 @@ const COLOR_OPTIONS = {
   ],
 }
 
+const TEXTURE_OPTIONS = [
+  { label: '磨砂质感', value: '磨砂质感', icon: '🪨' },
+  { label: '磨砂玻璃', value: '磨砂玻璃质感', icon: '🧊' },
+  { label: '透明玻璃', value: '透明玻璃质感', icon: '💎' },
+  { label: '金属质感', value: '金属质感', icon: '🔩' },
+  { label: '陶瓷质感', value: '陶瓷质感', icon: '🏺' },
+  { label: '塑料质感', value: '塑料质感', icon: '🧴' },
+  { label: '水晶质感', value: '水晶宝石质感', icon: '💠' },
+  { label: '粘土质感', value: '手工粘土质感', icon: '🎨' },
+]
+
 const STYLE_PRESETS = {
   '科技简约': { style: '科技', material: '磨砂质感', color: '蓝白配色', view: '等轴侧视角', bg: '纯白背景', renderer: 'Blender渲染', res: '8K分辨率', constraint: '无底座，减少细节' },
   '梦幻玻璃': { style: '梦幻', material: '几何玻璃', color: '蓝白带绿渐变', view: '等轴侧视角', bg: '浅蓝背景', renderer: 'C4D+OC渲染', res: '8K分辨率', constraint: '干净构图，无冗余装饰' },
@@ -143,7 +154,7 @@ function extractDNA(prompt) {
   return { dna, unmatched, completeness }
 }
 
-function analyzeText(title, desc) {
+function analyzeText(title, desc, primaryColor = '白色', accentColors = ['蓝色'], texture = '磨砂质感') {
   const text = `${title} ${desc}`.toLowerCase()
   const matched = []
 
@@ -191,12 +202,20 @@ function analyzeText(title, desc) {
   // 去重
   const uniqueElements = [...new Set(elements)].slice(0, 4)
 
-  return { elements: uniqueElements, reasons }
+  const colorDesc = accentColors.length > 0
+    ? `${primaryColor}为主色调搭配${accentColors.join('+')}点缀`
+    : `${primaryColor}为主色调`
+  const prompt = `3D图标，主体为${uniqueElements.join(' + ')}，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座，减少细节。`
+
+  return { elements: uniqueElements, reasons, prompt }
 }
 
 export default function Analyzer() {
   const [title, setTitle] = useState('')
   const [desc, setDesc] = useState('')
+  const [primaryColor, setPrimaryColor] = useState('白色')
+  const [accentColors, setAccentColors] = useState(['蓝色'])
+  const [texture, setTexture] = useState('磨砂质感')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   // batch
@@ -210,7 +229,7 @@ export default function Analyzer() {
     if (!title.trim()) { toast.error('请输入标题'); return }
     setLoading(true)
     setTimeout(() => {
-      setResult(analyzeText(title, desc))
+      setResult(analyzeText(title, desc, primaryColor, accentColors, texture))
       setLoading(false)
     }, 600)
   }
@@ -220,7 +239,7 @@ export default function Analyzer() {
     if (!lines.length) { toast.error('请输入内容'); return }
     const results = lines.map(line => {
       const [t, d = ''] = line.split('|')
-      return { title: t.trim(), ...analyzeText(t, d, primaryColor, accentColors) }
+      return { title: t.trim(), ...analyzeText(t, d, primaryColor, accentColors, texture) }
     })
     setBatchResults(results)
     toast.success(`已分析 ${results.length} 条`)
@@ -278,6 +297,17 @@ export default function Analyzer() {
                     {primaryColor}{accentColors.length > 0 ? ` + ${accentColors.join(' + ')}` : ''}
                   </div>
                 )}
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">质感</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {TEXTURE_OPTIONS.map(t => (
+                    <button key={t.value} onClick={() => setTexture(t.value)}
+                      className={`px-2.5 py-1 rounded-md text-xs transition-all ${texture === t.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
+                      {t.icon} {t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <Separator />
               <div>
