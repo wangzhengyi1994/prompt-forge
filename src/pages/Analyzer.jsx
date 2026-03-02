@@ -217,13 +217,39 @@ export default function Analyzer() {
   const [dnaInput, setDnaInput] = useState('')
   const [dnaResult, setDnaResult] = useState(null)
 
-  const analyze = () => {
+  const API_BASE = import.meta.env.VITE_COLLECT_API || 'https://api.shengtu.uk'
+
+  const analyze = async () => {
     if (!title.trim()) { toast.error('请输入标题'); return }
     setLoading(true)
-    setTimeout(() => {
+    try {
+      // 调用 AI 分析接口
+      const res = await fetch(`${API_BASE}/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim(), desc: desc.trim() }),
+      })
+      const ai = await res.json()
+      if (ai.error) throw new Error(ai.error)
+
+      const colorDesc = accentColors.length > 0
+        ? `${primaryColor}为主色调搭配${accentColors.join('+')}点缀`
+        : `${primaryColor}为主色调`
+      const elementsStr = ai.elements.join(' + ')
+      const prompt = `3D图标，主体为${ai.subject || elementsStr}，包含${elementsStr}元素，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座，减少细节。`
+
+      setResult({
+        elements: ai.elements,
+        reasons: [`AI分析: ${ai.reasoning}`],
+        prompt,
+      })
+    } catch (e) {
+      // AI 失败时 fallback 到本地分析
+      console.warn('AI analyze failed, fallback:', e)
       setResult(analyzeText(title, desc, primaryColor, accentColors, texture))
+    } finally {
       setLoading(false)
-    }, 600)
+    }
   }
 
   const batchAnalyze = () => {

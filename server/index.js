@@ -174,6 +174,85 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // AI concept analysis
+  if (req.method === 'POST' && req.url === '/api/analyze') {
+    let body = ''
+    req.on('data', c => body += c)
+    req.on('end', async () => {
+      try {
+        const { title, desc } = JSON.parse(body)
+        if (!title) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: '请提供标题' })); return }
+
+        const prompt = desc
+          ? `概念: "${title}"\n描述: "${desc}"`
+          : `概念: "${title}"`
+
+        const aiRes = await fetch(
+          'https://api.cloudflare.com/client/v4/accounts/123a93e0eb008d56cf542e2605401162/ai/run/@cf/meta/llama-3.1-8b-instruct',
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer bWggTDaHE-qlLszuwZJc-RD40bxRYAuO4pPj-gzz',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messages: [
+                {
+                  role: 'system',
+                  content: `你是一个专业的3D图标设计顾问。用户会输入一个功能名称或概念，你需要：
+1. 理解这个概念的核心含义
+2. 将其拆解为2-4个具体的、可以被3D建模的视觉元素
+3. 每个元素要具体到可以做成图标的物体（如"飞机"而不是"飞行"）
+4. 给出设计思路说明
+
+严格按以下JSON格式输出，不要输出其他内容：
+{
+  "elements": ["元素1", "元素2", "元素3"],
+  "reasoning": "简要说明为什么这样拆解",
+  "subject": "一句话描述图标主体"
+}`
+                },
+                { role: 'user', content: prompt }
+              ],
+            }),
+          }
+        )
+
+        const aiData = await aiRes.json()
+        const text = aiData.result?.response || ''
+
+        // Parse JSON from response
+        let parsed
+        try {
+          const jsonMatch = text.match(/\{[\s\S]*\}/)
+          parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null
+        } catch { parsed = null }
+
+        if (parsed?.elements) {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({
+            elements: parsed.elements,
+            reasoning: parsed.reasoning || '',
+            subject: parsed.subject || title,
+          }))
+        } else {
+          // Fallback: return title as subject
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({
+            elements: [title],
+            reasoning: 'AI分析未返回有效结果，使用原始标题',
+            subject: title,
+          }))
+        }
+      } catch (e) {
+        console.error('Analyze error:', e)
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: '分析失败: ' + e.message }))
+      }
+    })
+    return
+  }
+
   // Image proxy to bypass hotlink protection
   if (req.method === 'GET' && req.url.startsWith('/api/img?')) {
     const imgUrl = new URL(req.url, 'http://localhost').searchParams.get('url')
