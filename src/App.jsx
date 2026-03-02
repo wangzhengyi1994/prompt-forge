@@ -51,7 +51,7 @@ export default function App() {
   const sidebarContent = (mobile = false) => (
     <>
       <div className="h-14 flex items-center px-4 border-b border-border gap-2">
-        {(mobile || !collapsed) && <span className="font-bold text-lg bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">PromptForge</span>}
+        {(mobile || !collapsed) && <span className="font-bold text-lg bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Pico</span>}
         {mobile ? (
           <Button variant="ghost" size="icon" className="ml-auto h-8 w-8" onClick={() => setMobileOpen(false)}>
             <X className="h-4 w-4" />
@@ -97,7 +97,7 @@ export default function App() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <header className="h-14 border-b border-border flex items-center px-4 md:px-6 justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-base bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent md:hidden">PromptForge</span>
+              <span className="font-bold text-base bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent md:hidden">Pico</span>
               <h1 className="text-sm text-muted-foreground hidden md:block">AI 图标提示词工具</h1>
             </div>
             <Button variant="ghost" size="icon" onClick={() => setDark(!dark)}>

@@ -239,7 +239,7 @@ export default function Collect() {
                 <p className="font-medium text-foreground mt-3">使用方式:</p>
                 <ol className="list-decimal list-inside space-y-1 text-xs">
                   <li>在小红书笔记页面点击插件图标</li>
-                  <li>预览采集内容,点击「发送到 PromptForge」</li>
+                  <li>预览采集内容,点击「发送到 Pico」</li>
                   <li>数据会自动出现在下方</li>
                 </ol>
               </div>

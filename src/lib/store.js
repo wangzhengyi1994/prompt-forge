@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'promptforge_library'
+const STORAGE_KEY = 'pico_library'
 
 const SEED_DATA = [
   {
@@ -254,7 +254,7 @@ export function exportLibrary() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `promptforge-backup-${new Date().toISOString().slice(0, 10)}.json`
+  a.download = `pico-backup-${new Date().toISOString().slice(0, 10)}.json`
   a.click()
   URL.revokeObjectURL(url)
   return lib.length

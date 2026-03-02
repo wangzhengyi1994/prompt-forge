@@ -86,7 +86,7 @@ const DNA_DIMENSIONS = [
   },
 ]
 
-const STORAGE_KEY = 'promptforge_dna_profiles'
+const STORAGE_KEY = 'pico_dna_profiles'
 
 function getProfiles() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
