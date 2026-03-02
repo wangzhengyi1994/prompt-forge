@@ -11,6 +11,7 @@ import Dictionary from '@/pages/Dictionary'
 import Translator from '@/pages/Translator'
 import Scorer from '@/pages/Scorer'
 import StyleDNA from '@/pages/StyleDNA'
+import CommandPalette from '@/components/CommandPalette'
 
 const NAV = [
   { path: '/library', label: '素材库', icon: LibraryIcon },
@@ -101,6 +102,7 @@ export default function App() {
               <span className="font-bold text-base text-white md:hidden">Pico</span>
               <h1 className="text-sm text-muted-foreground hidden md:block">AI 图标提示词工具</h1>
             </div>
+            <kbd className="hidden md:inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-mono cursor-pointer select-none" onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}>⌘K</kbd>
             <Button variant="ghost" size="icon" onClick={() => setDark(!dark)}>
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
@@ -155,6 +157,7 @@ export default function App() {
         </nav>
       </div>
 
+      <CommandPalette />
       <Toaster />
     </div>
   )
