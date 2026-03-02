@@ -382,6 +382,12 @@ export default function Analyzer() {
                 <CardTitle className="text-base">分析结果</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0 space-y-4">
+                <div className="bg-muted p-4 rounded-lg text-sm cursor-pointer hover:bg-accent transition-colors group relative"
+                  onClick={() => copyText(result.prompt)}>
+                  {result.prompt}
+                  <span className="absolute top-2 right-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">点击复制</span>
+                </div>
+                <Separator />
                 <div>
                   <div className="text-xs text-muted-foreground mb-1">推荐元素组合</div>
                   <div className="flex flex-wrap gap-1">
@@ -394,14 +400,6 @@ export default function Analyzer() {
                   <ul className="text-sm space-y-1">
                     {result.reasons.map((r, i) => <li key={i} className="text-muted-foreground">• {r}</li>)}
                   </ul>
-                </div>
-                <Separator />
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">建议提示词</div>
-                  <div className="bg-muted p-3 rounded-md text-sm">{result.prompt}</div>
-                  <Button variant="ghost" size="sm" className="mt-1" onClick={() => copyText(result.prompt)}>
-                    <Copy className="h-3 w-3 mr-1" />复制
-                  </Button>
                 </div>
               </CardContent>
             </Card>
