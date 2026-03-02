@@ -133,7 +133,11 @@ function DetailDialog({ item, onClose, onDelete, onUpdate }) {
     <Dialog open={!!item} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto p-0">
         {/* Header with gradient */}
-        <div className="h-36 rounded-t-lg relative" style={{ background: item.thumbnail || 'linear-gradient(135deg, #667eea, #764ba2)' }}>
+        <div className="h-36 rounded-t-lg relative" style={
+          item.thumbnail?.startsWith('http') || item.thumbnail?.startsWith('/api/')
+            ? { backgroundImage: `url(${item.thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+            : { background: item.thumbnail || 'linear-gradient(135deg, #667eea, #764ba2)' }
+        }>
           <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
           <div className="absolute bottom-4 left-6 right-6">
             <DialogHeader>
@@ -177,6 +181,20 @@ function DetailDialog({ item, onClose, onDelete, onUpdate }) {
               </Button>
             )}
           </div>
+
+          {/* Images gallery */}
+          {item.images?.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground">图片素材 ({item.images.length})</div>
+              <div className="flex flex-wrap gap-2">
+                {item.images.map((img, i) => (
+                  <a key={i} href={img} target="_blank" rel="noopener noreferrer">
+                    <img src={img} alt="" className="h-20 w-20 object-cover rounded-md border hover:opacity-80 transition-opacity" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           <Separator />
 
@@ -283,7 +301,14 @@ export default function Library() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map(item => (
             <Card key={item.id} className="cursor-pointer hover:border-primary/50 transition-colors group" onClick={() => setSelected(item)}>
-              <div className="h-32 rounded-t-lg relative overflow-hidden" style={{ background: item.thumbnail || 'linear-gradient(135deg, #667eea, #764ba2)' }}>
+              <div className="h-32 rounded-t-lg relative overflow-hidden" style={
+                item.thumbnail?.startsWith('http') || item.thumbnail?.startsWith('/api/')
+                  ? { backgroundImage: `url(${item.thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                  : { background: item.thumbnail || 'linear-gradient(135deg, #667eea, #764ba2)' }
+              }>
+                {item.images?.length > 1 && (
+                  <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">{item.images.length}张</div>
+                )}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
               </div>
               <CardHeader className="p-4 pb-2">
@@ -307,7 +332,11 @@ export default function Library() {
           {filtered.map(item => (
             <Card key={item.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setSelected(item)}>
               <div className="flex items-center p-4 gap-4">
-                <div className="h-12 w-12 rounded-md shrink-0" style={{ background: item.thumbnail || 'linear-gradient(135deg, #667eea, #764ba2)' }} />
+                <div className="h-12 w-12 rounded-md shrink-0" style={
+                  item.thumbnail?.startsWith('http') || item.thumbnail?.startsWith('/api/')
+                    ? { backgroundImage: `url(${item.thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                    : { background: item.thumbnail || 'linear-gradient(135deg, #667eea, #764ba2)' }
+                } />
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">{item.title}</div>
                   <div className="flex gap-1 mt-1">
