@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+// Select removed - fixed 3D icon style
 import { Loader2, Sparkles, Copy, Dna, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -119,7 +119,7 @@ function extractDNA(prompt) {
   return { dna, unmatched, completeness }
 }
 
-function analyzeText(title, desc, styleKey) {
+function analyzeText(title, desc) {
   const text = `${title} ${desc}`.toLowerCase()
   const matched = []
 
@@ -167,16 +167,14 @@ function analyzeText(title, desc, styleKey) {
   // 去重
   const uniqueElements = [...new Set(elements)].slice(0, 4)
 
-  const preset = STYLE_PRESETS[styleKey] || STYLE_PRESETS['科技简约']
-  const prompt = `${preset.style}风格3D图标，主体为${uniqueElements.join(' + ')}，${preset.material}搭配${preset.color}，${preset.view}。${preset.renderer}，${preset.res}，${preset.bg}，${preset.constraint}。`
+  const prompt = `3D图标，主体为${uniqueElements.join(' + ')}，磨砂质感搭配柔和渐变配色，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座，减少细节。`
 
-  return { elements: uniqueElements, reasons, prompt, styleName: styleKey || '科技简约' }
+  return { elements: uniqueElements, reasons, prompt }
 }
 
 export default function Analyzer() {
   const [title, setTitle] = useState('')
   const [desc, setDesc] = useState('')
-  const [styleKey, setStyleKey] = useState('科技简约')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   // batch
@@ -190,7 +188,7 @@ export default function Analyzer() {
     if (!title.trim()) { toast.error('请输入标题'); return }
     setLoading(true)
     setTimeout(() => {
-      setResult(analyzeText(title, desc, styleKey))
+      setResult(analyzeText(title, desc))
       setLoading(false)
     }, 600)
   }
@@ -200,7 +198,7 @@ export default function Analyzer() {
     if (!lines.length) { toast.error('请输入内容'); return }
     const results = lines.map(line => {
       const [t, d = ''] = line.split('|')
-      return { title: t.trim(), ...analyzeText(t, d, styleKey) }
+      return { title: t.trim(), ...analyzeText(t, d) }
     })
     setBatchResults(results)
     toast.success(`已分析 ${results.length} 条`)
@@ -239,15 +237,6 @@ export default function Analyzer() {
                 <label className="text-xs text-muted-foreground">功能描述</label>
                 <Textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="描述该功能的用途..." rows={3} />
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground">选择风格预设</label>
-                <Select value={styleKey} onValueChange={setStyleKey}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.keys(STYLE_PRESETS).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
               <Button onClick={analyze} disabled={loading}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
                 分析
@@ -258,10 +247,7 @@ export default function Analyzer() {
           {result && (
             <Card>
               <CardHeader className="p-4 pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">分析结果</CardTitle>
-                  <Badge variant="secondary">{result.styleName}</Badge>
-                </div>
+                <CardTitle className="text-base">分析结果</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0 space-y-4">
                 <div>
@@ -297,15 +283,6 @@ export default function Analyzer() {
                 <label className="text-xs text-muted-foreground">批量输入(每行一条,格式: 标题|描述)</label>
                 <Textarea value={batchInput} onChange={e => setBatchInput(e.target.value)} placeholder={'云存储管理|管理云端文件和备份\nAI智能客服|基于AI的自动客服系统\n安全中心|账户安全和隐私设置'} rows={6} />
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground">风格预设</label>
-                <Select value={styleKey} onValueChange={setStyleKey}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.keys(STYLE_PRESETS).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
               <Button onClick={batchAnalyze}><Sparkles className="h-4 w-4 mr-1" />批量分析</Button>
             </CardContent>
           </Card>
@@ -315,7 +292,7 @@ export default function Analyzer() {
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-sm">{r.title}</span>
-                  <Badge variant="outline" className="text-xs">{r.styleName}</Badge>
+                  <Badge variant="outline" className="text-xs">3D图标</Badge>
                 </div>
                 <div className="flex flex-wrap gap-1">{r.elements.map((e, j) => <Badge key={j} variant="secondary">{e}</Badge>)}</div>
                 <div className="bg-muted p-3 rounded-md text-sm">{r.prompt}</div>
