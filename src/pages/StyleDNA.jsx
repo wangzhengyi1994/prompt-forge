@@ -219,13 +219,13 @@ export default function StyleDNA() {
           {/* Score overview */}
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center gap-6">
-                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-500 to-blue-500 flex flex-col items-center justify-center text-white shadow-lg">
-                  <Dna className="h-6 w-6" />
-                  <span className="text-lg font-bold">{score}/6</span>
+              <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-purple-500 to-blue-500 flex flex-col items-center justify-center text-white shadow-lg shrink-0">
+                  <Dna className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <span className="text-base sm:text-lg font-bold">{score}/6</span>
                 </div>
-                <div className="flex-1">
-                  <div className="text-lg font-semibold">检测到 {totalMatched} 个基因片段</div>
+                <div className="flex-1 text-center sm:text-left">
+                  <div className="text-base sm:text-lg font-semibold">检测到 {totalMatched} 个基因片段</div>
                   <p className="text-muted-foreground text-sm mt-1">
                     覆盖 {score} 个维度{score < 4 ? ',建议补充更多维度以丰富风格' : score < 6 ? ',风格较为完整' : ',风格非常丰富'}
                   </p>
@@ -292,15 +292,15 @@ export default function StyleDNA() {
           <CardHeader><CardTitle className="text-base">已保存的风格DNA ({profiles.length})</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {profiles.map(p => (
-              <div key={p.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                <div className="w-8 h-8 rounded-md bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center shrink-0">
+              <div key={p.id} className="flex items-center gap-2 sm:gap-3 p-3 bg-muted/50 rounded-lg">
+                <div className="w-8 h-8 rounded-md bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center shrink-0 hidden sm:flex">
                   <Dna className="h-4 w-4 text-purple-400" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">{p.name}</div>
                   <div className="text-xs text-muted-foreground truncate">{p.fragment}</div>
                 </div>
-                <span className="text-xs text-muted-foreground shrink-0">{p.date}</span>
+                <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">{p.date}</span>
                 <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => applyProfile(p)}>
                   {copied === 'profile-' + p.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                 </Button>

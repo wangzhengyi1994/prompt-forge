@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 // Select removed
-import { Loader2, Sparkles, Copy, Dna, Zap, ArrowRight } from 'lucide-react'
+import { Loader2, Sparkles, Copy, Dna, Zap, ArrowRight, ImageIcon, ChevronDown, ChevronUp, Download } from 'lucide-react'
 import { toast } from 'sonner'
 
 // 语义分类: triggers(触发词) → elements(推荐元素) + label(显示名)
@@ -154,7 +154,7 @@ function extractDNA(prompt) {
   return { dna, unmatched, completeness }
 }
 
-function analyzeText(title, desc, primaryColor = '白色', accentColors = ['蓝色'], texture = '磨砂质感') {
+function analyzeText(title, desc, primaryColor = '白色', accentColors = ['蓝色'], texture = '磨砂质感', noShadow = true) {
   const text = `${title} ${desc}`.toLowerCase()
 
   // 第一步: 标题就是核心主体,直接作为图标主题
@@ -197,7 +197,8 @@ function analyzeText(title, desc, primaryColor = '白色', accentColors = ['蓝�
   const subjectPart = supplementary.length > 0
     ? `${subject}，搭配${supplementary.slice(0, 2).join('和')}元素`
     : subject
-  const prompt = `3D图标，主体为${subjectPart}，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座，减少细节。`
+  const shadowStr = noShadow ? '，无投影' : '，带柔和投影'
+  const prompt = `3D图标，主体为${subjectPart}，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座${shadowStr}，减少细节。`
 
   return { elements, reasons, prompt }
 }
@@ -219,13 +220,57 @@ export default function Analyzer() {
     fetch(`${API}/api/history`).then(r => r.json()).then(setHistory).catch(() => {
       try { setHistory(JSON.parse(localStorage.getItem('pico_analyze_history') || '[]')) } catch {}
     })
+    // 加载生图历史
+    fetch(`${API}/api/gen-history`).then(r => r.json()).then(setGenHistory).catch(() => {
+      try { setGenHistory(JSON.parse(localStorage.getItem('pico_gen_history') || '[]')) } catch {}
+    })
   }, [])
+
+  const downloadImage = async (url, filename) => {
+    try {
+      const res = await fetch(url)
+      const blob = await res.blob()
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = filename || 'pico-image.png'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(a.href)
+      toast.success('下载成功')
+    } catch { toast.error('下载失败') }
+  }
+
+  const downloadAll = async (images, prefix) => {
+    for (let i = 0; i < images.length; i++) {
+      await downloadImage(images[i], `${prefix}-${i + 1}.png`)
+      if (i < images.length - 1) await new Promise(r => setTimeout(r, 500))
+    }
+  }
   // batch
   const [batchInput, setBatchInput] = useState('')
   const [batchResults, setBatchResults] = useState([])
   // DNA
   const [dnaInput, setDnaInput] = useState('')
   const [dnaResult, setDnaResult] = useState(null)
+  const [generating, setGenerating] = useState(false)
+  const [generatedImages, setGeneratedImages] = useState([])
+  const [imageSize, setImageSize] = useState('2k-1:1')
+  const [settingsOpen, setSettingsOpen] = useState(true)
+  const [noShadow, setNoShadow] = useState(true)
+  const [genHistory, setGenHistory] = useState([])
+  const [rightTab, setRightTab] = useState('gen')
+
+  const SIZE_OPTIONS = [
+    { value: '2k-1:1', label: '2K 1:1', w: 2048, h: 2048 },
+    { value: '2k-4:3', label: '2K 4:3', w: 2304, h: 1728 },
+    { value: '2k-3:2', label: '2K 3:2', w: 2496, h: 1664 },
+    { value: '2k-16:9', label: '2K 16:9', w: 2560, h: 1440 },
+    { value: '4k-1:1', label: '4K 1:1', w: 4096, h: 4096 },
+    { value: '4k-4:3', label: '4K 4:3', w: 4694, h: 3520 },
+    { value: '4k-3:2', label: '4K 3:2', w: 4992, h: 3328 },
+    { value: '4k-16:9', label: '4K 16:9', w: 5404, h: 3040 },
+  ]
 
   const API_BASE = import.meta.env.VITE_COLLECT_API || 'https://api.shengtu.uk'
 
@@ -247,7 +292,8 @@ export default function Analyzer() {
         : `${primaryColor}为主色调`
       const elementsStr = ai.elements.join(' + ')
       const layoutDesc = ai.layout ? `，${ai.layout}` : ''
-      const prompt = `3D图标，主体为${ai.subject || elementsStr}，包含${elementsStr}元素${layoutDesc}，每个元素保持独立完整造型，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座，减少细节。`
+      const shadowStr = noShadow ? '，无投影' : '，带柔和投影'
+      const prompt = `单个3D图标，主体为${ai.subject || elementsStr}，包含${elementsStr}元素${layoutDesc}，所有元素组合在同一个图标中且保持独立完整造型，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座${shadowStr}，减少细节，只生成一张图。`
 
       const newResult = {
         elements: ai.elements,
@@ -262,7 +308,7 @@ export default function Analyzer() {
     } catch (e) {
       // AI 失败时 fallback 到本地分析
       console.warn('AI analyze failed, fallback:', e)
-      const fallback = analyzeText(title, desc, primaryColor, accentColors, texture)
+      const fallback = analyzeText(title, desc, primaryColor, accentColors, texture, noShadow)
       setResult(fallback)
       const entry = { title: title.trim(), prompt: fallback.prompt, elements: fallback.elements, time: new Date().toLocaleString('zh-CN') }
       fetch(`${API_BASE}/api/history`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry) }).catch(() => {})
@@ -272,12 +318,74 @@ export default function Analyzer() {
     }
   }
 
+  const generateImage = async () => {
+    if (!result?.prompt) { toast.error('请先分析生成提示词'); return }
+    setGenerating(true)
+    setGeneratedImages([])
+    try {
+      // 提交任务
+      const sizeOpt = SIZE_OPTIONS.find(s => s.value === imageSize) || SIZE_OPTIONS[0]
+      const submitRes = await fetch(`${API_BASE}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: result.prompt, width: sizeOpt.w, height: sizeOpt.h }),
+      })
+      const submitData = await submitRes.json()
+      if (!submitData.task_id) throw new Error(submitData.error || '提交失败')
+
+      toast.info('图片生成中, 请稍候...')
+
+      // 轮询结果
+      let attempts = 0
+      const maxAttempts = 60
+      while (attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 3000))
+        const queryRes = await fetch(`${API_BASE}/api/generate/result`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task_id: submitData.task_id }),
+        })
+        const queryData = await queryRes.json()
+        if (queryData.status === 'done' && queryData.images?.length) {
+          setGeneratedImages(queryData.images)
+          const genEntry = {
+            id: Date.now(),
+            title: title.trim() || '未命名',
+            prompt: result.prompt,
+            images: queryData.images,
+            size: imageSize,
+            time: new Date().toLocaleString('zh-CN'),
+          }
+          setGenHistory(prev => {
+            const updated = [genEntry, ...prev].slice(0, 100)
+            fetch(`${API_BASE}/api/gen-history`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(genEntry) }).catch(() => {})
+            localStorage.setItem('pico_gen_history', JSON.stringify(updated))
+            return updated
+          })
+          toast.success('图片生成完成')
+          return
+        }
+        if (queryData.status === 'done' && !queryData.images?.length) {
+          throw new Error('生成完成但无图片返回')
+        }
+        if (queryData.error) throw new Error(queryData.error)
+        attempts++
+      }
+      throw new Error('生成超时, 请重试')
+    } catch (e) {
+      console.error('Generate error:', e)
+      toast.error(e.message || '生成失败')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   const batchAnalyze = () => {
     const lines = batchInput.trim().split('\n').filter(Boolean)
     if (!lines.length) { toast.error('请输入内容'); return }
     const results = lines.map(line => {
       const [t, d = ''] = line.split('|')
-      return { title: t.trim(), ...analyzeText(t, d, primaryColor, accentColors, texture) }
+      return { title: t.trim(), ...analyzeText(t, d, primaryColor, accentColors, texture, noShadow) }
     })
     setBatchResults(results)
     toast.success(`已分析 ${results.length} 条`)
@@ -303,9 +411,10 @@ export default function Analyzer() {
     toast.success('历史已清空')
   }
 
+  const settingsSummary = `${primaryColor}${accentColors.length ? ' + ' + accentColors.join('+') : ''} · ${texture} · ${elementCount}个元素 · ${noShadow ? '无投影' : '有投影'}`
+
   return (
-    <div className="flex gap-6 items-start">
-    <div className="flex-1 min-w-0 space-y-4">
+    <div className="space-y-4">
       <Tabs defaultValue="single">
         <TabsList>
           <TabsTrigger value="single">单条分析</TabsTrigger>
@@ -313,103 +422,289 @@ export default function Analyzer() {
           <TabsTrigger value="dna">风格DNA</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="single" className="space-y-4">
+        <TabsContent value="single">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+    {/* 左栏: 输入 */}
+    <div className="space-y-4">
           <Card>
-            <CardContent className="p-6 space-y-5">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-2 block">主色</label>
-                <div className="flex flex-wrap gap-2.5">
-                  {COLOR_OPTIONS.primary.map(c => (
-                    <button key={c.value} onClick={() => setPrimaryColor(c.value)}
-                      className={`w-9 h-9 rounded-full transition-all ${primaryColor === c.value ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105'} ${c.border ? 'border border-border' : ''}`}
-                      style={{ backgroundColor: c.color }} title={c.label} />
-                  ))}
+            <CardContent className="p-5 space-y-4">
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <label className="text-sm font-medium text-muted-foreground mb-1.5 block">功能标题</label>
+                  <Input value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !loading) analyze() }} placeholder="如：云存储管理" className="h-11" />
                 </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-2 block">点缀色 (可多选)</label>
-                <div className="flex flex-wrap gap-2.5">
-                  {COLOR_OPTIONS.accent.map(c => {
-                    const active = accentColors.includes(c.value)
-                    return (
-                      <button key={c.value} onClick={() => setAccentColors(prev => active ? prev.filter(x => x !== c.value) : [...prev, c.value])}
-                        className={`w-9 h-9 rounded-full transition-all ${active ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105'}`}
-                        style={{ backgroundColor: c.color }} title={c.label} />
-                    )
-                  })}
-                </div>
-                {(primaryColor || accentColors.length > 0) && (
-                  <div className="text-xs text-muted-foreground mt-1.5">
-                    {primaryColor}{accentColors.length > 0 ? ` + ${accentColors.join(' + ')}` : ''}
-                  </div>
-                )}
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-2 block">质感</label>
-                <div className="flex flex-wrap gap-2">
-                  {TEXTURE_OPTIONS.map(t => (
-                    <button key={t.value} onClick={() => setTexture(t.value)}
-                      className={`px-3 py-1.5 rounded-lg text-sm transition-all ${texture === t.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
-                      {t.icon} {t.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-2 block">元素数量</label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <button key={n} onClick={() => setElementCount(n)}
-                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${elementCount === n ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <Separator />
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-1.5 block">功能标题</label>
-                <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="如：云存储管理" className="h-11" />
+                <Button onClick={analyze} disabled={loading} className="h-11 px-6 text-base shrink-0">
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin mr-1.5" /> : <Sparkles className="h-5 w-5 mr-1.5" />}
+                  分析
+                </Button>
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground mb-1.5 block">功能描述</label>
-                <Textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="描述该功能的用途..." rows={2} />
+                <Textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="描述该功能的用途 (可选)" rows={1} className="min-h-[40px] resize-y" />
               </div>
-              <Button onClick={analyze} disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
-                分析
-              </Button>
+
+              {/* 可折叠的样式配置 */}
+              <div className="border border-border rounded-lg overflow-hidden">
+                <button onClick={() => setSettingsOpen(!settingsOpen)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/50 transition-colors text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">样式配置</span>
+                    {!settingsOpen && <span className="text-xs text-muted-foreground">{settingsSummary}</span>}
+                  </div>
+                  {settingsOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                </button>
+                {settingsOpen && (
+                  <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">主色</label>
+                      <div className="flex flex-wrap gap-2.5">
+                        {COLOR_OPTIONS.primary.map(c => (
+                          <button key={c.value} onClick={() => setPrimaryColor(c.value)}
+                            className={`w-9 h-9 rounded-full transition-all ${primaryColor === c.value ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105'} ${c.border ? 'border border-border' : ''}`}
+                            style={{ backgroundColor: c.color }} title={c.label} />
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">点缀色 (可多选)</label>
+                      <div className="flex flex-wrap gap-2.5">
+                        {COLOR_OPTIONS.accent.map(c => {
+                          const active = accentColors.includes(c.value)
+                          return (
+                            <button key={c.value} onClick={() => setAccentColors(prev => active ? prev.filter(x => x !== c.value) : [...prev, c.value])}
+                              className={`w-9 h-9 rounded-full transition-all ${active ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105'}`}
+                              style={{ backgroundColor: c.color }} title={c.label} />
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">质感</label>
+                      <div className="flex flex-wrap gap-2">
+                        {TEXTURE_OPTIONS.map(t => (
+                          <button key={t.value} onClick={() => setTexture(t.value)}
+                            className={`px-3 py-1.5 rounded-lg text-sm transition-all ${texture === t.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
+                            {t.icon} {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">元素数量</label>
+                      <div className="flex gap-2">
+                        {[1, 2, 3, 4, 5].map(n => (
+                          <button key={n} onClick={() => setElementCount(n)}
+                            className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${elementCount === n ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">投影</label>
+                      <div className="flex gap-2">
+                        {[{ value: true, label: '无投影' }, { value: false, label: '有投影' }].map(opt => (
+                          <button key={String(opt.value)} onClick={() => setNoShadow(opt.value)}
+                            className={`px-3 py-1.5 rounded-lg text-sm transition-all ${noShadow === opt.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
+    </div>
 
-          {result && (
-            <Card>
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-base">分析结果</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0 space-y-4">
-                <div className="bg-muted p-4 rounded-lg text-sm cursor-pointer hover:bg-accent transition-colors group relative"
-                  onClick={() => copyText(result.prompt)}>
-                  {result.prompt}
-                  <span className="absolute top-2 right-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">点击复制</span>
+    {/* 中栏: 分析结果 + 生图 */}
+    <div className="space-y-4 min-h-[60vh]">
+      {result ? (
+        <>
+          <Card>
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-base">提示词</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 space-y-4">
+              <div className="bg-muted p-4 rounded-lg text-sm cursor-pointer hover:bg-accent transition-colors group relative"
+                onClick={() => copyText(result.prompt)}>
+                {result.prompt}
+                <span className="absolute top-2 right-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">点击复制</span>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">推荐元素</div>
+                <div className="flex flex-wrap gap-1">
+                  {result.elements.map((e, i) => <Badge key={i}>{e}</Badge>)}
                 </div>
-                <Separator />
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">推荐元素组合</div>
-                  <div className="flex flex-wrap gap-1">
-                    {result.elements.map((e, i) => <Badge key={i}>{e}</Badge>)}
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">设计理由</div>
+                <ul className="text-sm space-y-1">
+                  {result.reasons.map((r, i) => <li key={i} className="text-muted-foreground">• {r}</li>)}
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-base">即梦AI 生图</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 space-y-4">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-2 block">尺寸</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {SIZE_OPTIONS.map(s => (
+                    <button key={s.value} onClick={() => setImageSize(s.value)}
+                      className={`px-2.5 py-1 rounded-md text-xs transition-all ${imageSize === s.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <Button onClick={generateImage} disabled={generating} variant="secondary" className="w-full">
+                {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <ImageIcon className="h-4 w-4 mr-1" />}
+                {generating ? '生成中...' : '生成图片'}
+              </Button>
+              {generatedImages.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-2">
+                    {generatedImages.map((url, i) => (
+                      <div key={i} className="relative group">
+                        <a href={url} target="_blank" rel="noopener noreferrer">
+                          <img src={url} alt={`生成图片 ${i + 1}`} className="rounded-lg w-full hover:opacity-90 transition-opacity" />
+                        </a>
+                        <button onClick={() => downloadImage(url, `${title || 'pico'}-${i + 1}.png`)}
+                          className="absolute top-2 right-2 p-1.5 rounded-md bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70">
+                          <Download className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
+                  {generatedImages.length > 1 && (
+                    <Button variant="outline" size="sm" className="w-full" onClick={() => downloadAll(generatedImages, title || 'pico')}>
+                      <Download className="h-3 w-3 mr-1" />全部下载 ({generatedImages.length}张)
+                    </Button>
+                  )}
                 </div>
-                <Separator />
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">设计理由</div>
-                  <ul className="text-sm space-y-1">
-                    {result.reasons.map((r, i) => <li key={i} className="text-muted-foreground">• {r}</li>)}
-                  </ul>
+              ) : (
+                <div className="w-full aspect-square rounded-lg border-2 border-dashed border-border flex items-center justify-center">
+                  {generating ? (
+                    <div className="text-center space-y-2">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
+                      <span className="text-sm text-muted-foreground">生成中...</span>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-1">
+                      <ImageIcon className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+                      <span className="text-xs text-muted-foreground">图片预览</span>
+                    </div>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <Card className="h-full">
+          <CardContent className="p-8 text-center text-muted-foreground text-sm flex items-center justify-center h-full">
+            输入功能标题, 点击分析生成提示词
+          </CardContent>
+        </Card>
+      )}
+    </div>
+
+    {/* 右栏: 历史记录 */}
+    <div className="hidden lg:block">
+      <Card>
+        <CardHeader className="p-4 pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex gap-1">
+              <button onClick={() => setRightTab('gen')}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${rightTab === 'gen' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>
+                生图记录
+              </button>
+              <button onClick={() => setRightTab('analyze')}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${rightTab === 'analyze' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>
+                分析记录
+              </button>
+            </div>
+            {rightTab === 'analyze' && history.length > 0 && (
+              <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={clearHistory}>清空</Button>
+            )}
+            {rightTab === 'gen' && genHistory.length > 0 && (
+              <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={() => {
+                fetch(`${API_BASE}/api/gen-history`, { method: 'DELETE' }).catch(() => {})
+                setGenHistory([])
+                localStorage.removeItem('pico_gen_history')
+                toast.success('生图记录已清空')
+              }}>清空</Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 pt-0 max-h-[70vh] overflow-auto">
+          {rightTab === 'gen' && (
+            genHistory.length === 0 ? (
+              <div className="text-sm text-muted-foreground text-center py-8">暂无生图记录</div>
+            ) : (
+              <div className="space-y-4">
+                {genHistory.map(g => (
+                  <div key={g.id} className="border border-border rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium truncate">{g.title}</span>
+                      <span className="text-xs text-muted-foreground shrink-0 ml-2">{g.time}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {g.images?.map((url, i) => (
+                        <div key={i} className="relative group">
+                          <img src={url} alt="" className="rounded w-full aspect-square object-cover" />
+                          <button onClick={() => downloadImage(url, `${g.title}-${i + 1}.png`)}
+                            className="absolute top-1 right-1 p-1 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70">
+                            <Download className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {g.images?.length > 1 && (
+                      <Button variant="ghost" size="sm" className="w-full h-7 text-xs" onClick={() => downloadAll(g.images, g.title)}>
+                        <Download className="h-3 w-3 mr-1" />全部下载 ({g.images.length}张)
+                      </Button>
+                    )}
+                    <div className="text-xs text-muted-foreground line-clamp-2 cursor-pointer hover:text-foreground transition-colors"
+                      onClick={() => copyText(g.prompt)} title="点击复制提示词">
+                      {g.prompt}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
+          {rightTab === 'analyze' && (
+            history.length === 0 ? (
+              <div className="text-sm text-muted-foreground text-center py-8">暂无记录</div>
+            ) : (
+              <div className="relative pl-4 border-l border-border space-y-4">
+                {history.map(h => (
+                  <div key={h.id} className="relative group">
+                    <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />
+                    <div className="text-xs text-muted-foreground mb-1">{h.time}</div>
+                    <div className="text-sm font-medium mb-1">{h.title}</div>
+                    <div className="flex flex-wrap gap-1 mb-1.5">
+                      {h.elements?.map((e, i) => <Badge key={i} variant="secondary" className="text-xs">{e}</Badge>)}
+                    </div>
+                    <div className="text-xs text-muted-foreground bg-muted p-2 rounded cursor-pointer hover:bg-accent transition-colors line-clamp-3"
+                      onClick={() => copyText(h.prompt)} title="点击复制">
+                      {h.prompt}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </CardContent>
+      </Card>
+    </div>
+    </div>
         </TabsContent>
 
         <TabsContent value="batch" className="space-y-4">
@@ -422,7 +717,6 @@ export default function Analyzer() {
               <Button onClick={batchAnalyze}><Sparkles className="h-4 w-4 mr-1" />批量分析</Button>
             </CardContent>
           </Card>
-
           {batchResults.map((r, i) => (
             <Card key={i}>
               <CardContent className="p-4 space-y-2">
@@ -448,29 +742,19 @@ export default function Analyzer() {
               <p className="text-xs text-muted-foreground">粘贴任意提示词,自动提取其风格基因组成</p>
             </CardHeader>
             <CardContent className="p-4 pt-0 space-y-3">
-              <Textarea
-                value={dnaInput}
-                onChange={e => setDnaInput(e.target.value)}
-                placeholder="粘贴一段提示词,分析其风格DNA..."
-                rows={4}
-              />
+              <Textarea value={dnaInput} onChange={e => setDnaInput(e.target.value)} placeholder="粘贴一段提示词,分析其风格DNA..." rows={4} />
               <div className="flex gap-2 flex-wrap">
-                <Button onClick={handleDNA}>
-                  <Zap className="h-4 w-4 mr-1" />提取DNA
-                </Button>
+                <Button onClick={handleDNA}><Zap className="h-4 w-4 mr-1" />提取DNA</Button>
                 <Button variant="outline" onClick={() => { setDnaInput(''); setDnaResult(null) }}>清空</Button>
               </div>
               <div className="flex flex-wrap gap-2">
                 <span className="text-xs text-muted-foreground self-center">示例:</span>
                 {DNA_EXAMPLES.map((ex, i) => (
-                  <Badge key={i} variant="secondary" className="cursor-pointer hover:bg-accent text-xs" onClick={() => setDnaInput(ex)}>
-                    示例 {i + 1}
-                  </Badge>
+                  <Badge key={i} variant="secondary" className="cursor-pointer hover:bg-accent text-xs" onClick={() => setDnaInput(ex)}>示例 {i + 1}</Badge>
                 ))}
               </div>
             </CardContent>
           </Card>
-
           {dnaResult && (
             <>
               <Card>
@@ -483,14 +767,12 @@ export default function Analyzer() {
                       <div className="text-sm font-medium">风格完整度</div>
                       <div className="text-xs text-muted-foreground">
                         {dnaResult.completeness >= 80 ? '风格定义完整,各维度清晰' :
-                         dnaResult.completeness >= 50 ? '基本维度覆盖,部分缺失' :
-                         '风格定义不完整,建议补充更多维度'}
+                         dnaResult.completeness >= 50 ? '基本维度覆盖,部分缺失' : '风格定义不完整,建议补充更多维度'}
                       </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-
               <Card>
                 <CardHeader className="p-4 pb-2"><CardTitle className="text-sm">DNA 图谱</CardTitle></CardHeader>
                 <CardContent className="p-4 pt-0 space-y-3">
@@ -506,15 +788,12 @@ export default function Analyzer() {
                     <div className="flex items-start gap-3">
                       <span className="text-xs text-muted-foreground w-14 shrink-0 text-right">缺失</span>
                       <div className="flex flex-wrap gap-1">
-                        {dnaResult.unmatched.map(d => (
-                          <Badge key={d} variant="outline" className="text-xs text-red-400 border-red-400/30">{d}</Badge>
-                        ))}
+                        {dnaResult.unmatched.map(d => <Badge key={d} variant="outline" className="text-xs text-red-400 border-red-400/30">{d}</Badge>)}
                       </div>
                     </div>
                   )}
                 </CardContent>
               </Card>
-
               <Card>
                 <CardHeader className="p-4 pb-2"><CardTitle className="text-sm">DNA 代码</CardTitle></CardHeader>
                 <CardContent className="p-4 pt-0">
@@ -530,46 +809,6 @@ export default function Analyzer() {
           )}
         </TabsContent>
       </Tabs>
-    </div>
-
-    {/* 历史记录 */}
-    <div className="flex-1 min-w-0 hidden lg:block">
-      <Card className="sticky top-4">
-        <CardHeader className="p-4 pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm">历史记录</CardTitle>
-            {history.length > 0 && (
-              <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={clearHistory}>清空</Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="p-4 pt-0 max-h-[70vh] overflow-auto">
-          {history.length === 0 ? (
-            <div className="text-sm text-muted-foreground text-center py-8">暂无记录</div>
-          ) : (
-            <div className="relative pl-4 border-l border-border space-y-4">
-              {history.map(h => (
-                <div key={h.id} className="relative group">
-                  <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />
-                  <div className="text-xs text-muted-foreground mb-1">{h.time}</div>
-                  <div className="text-sm font-medium mb-1">{h.title}</div>
-                  <div className="flex flex-wrap gap-1 mb-1.5">
-                    {h.elements?.map((e, i) => <Badge key={i} variant="secondary" className="text-xs">{e}</Badge>)}
-                  </div>
-                  <div
-                    className="text-xs text-muted-foreground bg-muted p-2 rounded cursor-pointer hover:bg-accent transition-colors line-clamp-3"
-                    onClick={() => { copyText(h.prompt); }}
-                    title="点击复制"
-                  >
-                    {h.prompt}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
     </div>
   )
 }

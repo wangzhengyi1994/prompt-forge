@@ -202,15 +202,15 @@ export default function Scorer() {
         <>
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center gap-6">
-                <div className={`w-20 h-20 rounded-2xl ${grade.color} flex items-center justify-center text-white text-3xl font-bold shadow-lg`}>
+              <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl ${grade.color} flex items-center justify-center text-white text-2xl sm:text-3xl font-bold shadow-lg shrink-0`}>
                   {grade.label}
                 </div>
-                <div className="flex-1">
-                  <div className="text-4xl font-bold">{totalScore}<span className="text-lg text-muted-foreground">/100</span></div>
+                <div className="flex-1 text-center sm:text-left">
+                  <div className="text-3xl sm:text-4xl font-bold">{totalScore}<span className="text-lg text-muted-foreground">/100</span></div>
                   <p className="text-muted-foreground mt-1">{grade.text}</p>
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex sm:flex-col gap-2">
                   <Button size="sm" variant="outline" onClick={() => { copyToClipboard(input); toast.success('已复制') }}>
                     <Copy className="w-3 h-3 mr-1" />复制
                   </Button>

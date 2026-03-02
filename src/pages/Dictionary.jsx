@@ -195,22 +195,26 @@ export default function Dictionary() {
       </div>
 
       {selected.length > 0 && (
-        <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
-          <span className="text-xs text-muted-foreground">已选 {selected.length} 个</span>
-          <div className="flex-1 flex flex-wrap gap-1">
-            {selected.map(w => (
-              <Badge key={w.zh} variant="secondary" className="text-xs cursor-pointer" onClick={() => toggleSelect(w)}>
-                {w.zh} ×
-              </Badge>
-            ))}
+        <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground">已选 {selected.length} 个</span>
+            <div className="flex-1 flex flex-wrap gap-1">
+              {selected.map(w => (
+                <Badge key={w.zh} variant="secondary" className="text-xs cursor-pointer" onClick={() => toggleSelect(w)}>
+                  {w.zh} ×
+                </Badge>
+              ))}
+            </div>
           </div>
-          <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={copySelected}>
-            <Copy className="h-3 w-3" />逗号分隔
-          </Button>
-          <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={copyAsPromptSnippet}>
-            <Combine className="h-3 w-3" />拼接复制
-          </Button>
-          <Button variant="ghost" size="sm" className="text-xs" onClick={clearSelected}>清空</Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={copySelected}>
+              <Copy className="h-3 w-3" />逗号分隔
+            </Button>
+            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={copyAsPromptSnippet}>
+              <Combine className="h-3 w-3" />拼接复制
+            </Button>
+            <Button variant="ghost" size="sm" className="text-xs" onClick={clearSelected}>清空</Button>
+          </div>
         </div>
       )}
 

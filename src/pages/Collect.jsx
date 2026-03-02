@@ -166,11 +166,11 @@ export default function Collect() {
   return (
     <div className="max-w-2xl space-y-4">
       <Tabs defaultValue="url">
-        <TabsList>
-          <TabsTrigger value="url">链接采集</TabsTrigger>
-          <TabsTrigger value="paste">粘贴采集</TabsTrigger>
-          <TabsTrigger value="extension">插件采集</TabsTrigger>
-          <TabsTrigger value="manual">手动录入</TabsTrigger>
+        <TabsList className="w-full overflow-x-auto flex-nowrap">
+          <TabsTrigger value="url" className="flex-1 min-w-fit">链接采集</TabsTrigger>
+          <TabsTrigger value="paste" className="flex-1 min-w-fit">粘贴采集</TabsTrigger>
+          <TabsTrigger value="extension" className="flex-1 min-w-fit">插件采集</TabsTrigger>
+          <TabsTrigger value="manual" className="flex-1 min-w-fit">手动录入</TabsTrigger>
         </TabsList>
 
         <TabsContent value="url" className="space-y-4">

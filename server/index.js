@@ -1,8 +1,104 @@
 import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
+import crypto from 'node:crypto'
 
 const PORT = 3721
+
+// 火山引擎即梦AI配置
+const VOLC_AK = process.env.VOLC_ACCESS_KEY || ''
+const VOLC_SK = process.env.VOLC_SECRET_KEY || ''
+const VOLC_HOST = 'visual.volcengineapi.com'
+const VOLC_REGION = 'cn-north-1'
+const VOLC_SERVICE = 'cv'
+
+// 火山引擎 HMAC-SHA256 签名
+function hmacSha256(key, data) {
+  return crypto.createHmac('sha256', key).update(data).digest()
+}
+function sha256Hex(data) {
+  return crypto.createHash('sha256').update(data).digest('hex')
+}
+
+function volcSign(method, queryString, headers, body, date) {
+  const dateStamp = date.toISOString().replace(/[-:]/g, '').slice(0, 8)
+  const amzDate = date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+  const credentialScope = `${dateStamp}/${VOLC_REGION}/${VOLC_SERVICE}/request`
+
+  const signedHeaders = 'content-type;host;x-content-sha256;x-date'
+  const payloadHash = sha256Hex(body)
+
+  const canonicalRequest = [
+    method,
+    '/',
+    queryString,
+    `content-type:application/json\nhost:${VOLC_HOST}\nx-content-sha256:${payloadHash}\nx-date:${amzDate}\n`,
+    signedHeaders,
+    payloadHash,
+  ].join('\n')
+
+  const stringToSign = [
+    'HMAC-SHA256',
+    amzDate,
+    credentialScope,
+    sha256Hex(canonicalRequest),
+  ].join('\n')
+
+  let signingKey = hmacSha256(VOLC_SK, dateStamp)
+  signingKey = hmacSha256(signingKey, VOLC_REGION)
+  signingKey = hmacSha256(signingKey, VOLC_SERVICE)
+  signingKey = hmacSha256(signingKey, 'request')
+
+  const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex')
+
+  return {
+    authorization: `HMAC-SHA256 Credential=${VOLC_AK}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+    amzDate,
+    payloadHash,
+  }
+}
+
+async function volcRequest(action, body) {
+  const bodyStr = JSON.stringify(body)
+  const queryString = `Action=${action}&Version=2022-08-31`
+  const date = new Date()
+  const { authorization, amzDate, payloadHash } = volcSign('POST', queryString, {}, bodyStr, date)
+
+  const res = await fetch(`https://${VOLC_HOST}/?${queryString}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Host': VOLC_HOST,
+      'X-Date': amzDate,
+      'X-Content-Sha256': payloadHash,
+      'Authorization': authorization,
+    },
+    body: bodyStr,
+  })
+  return res.json()
+}
+
+// 即梦AI 提交生图任务
+async function jimengSubmit(prompt, opts = {}) {
+  const body = {
+    req_key: 'jimeng_t2i_v40',
+    prompt,
+    force_single: true,
+    width: opts.width || 1024,
+    height: opts.height || 1024,
+  }
+  if (opts.scale !== undefined) body.scale = opts.scale
+  return volcRequest('CVSync2AsyncSubmitTask', body)
+}
+
+// 即梦AI 查询任务结果
+async function jimengQuery(taskId) {
+  return volcRequest('CVSync2AsyncGetResult', {
+    req_key: 'jimeng_t2i_v40',
+    task_id: taskId,
+    req_json: JSON.stringify({ return_url: true }),
+  })
+}
 const DATA_DIR = path.join(import.meta.dirname || '.', 'data')
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
 
@@ -199,7 +295,7 @@ const server = http.createServer(async (req, res) => {
           : `概念: "${title}"\n要求拆解为${count}个元素`
 
         const aiRes = await fetch(
-          'https://api.cloudflare.com/client/v4/accounts/123a93e0eb008d56cf542e2605401162/ai/run/@cf/meta/llama-3.1-8b-instruct',
+          'https://api.cloudflare.com/client/v4/accounts/123a93e0eb008d56cf542e2605401162/ai/run/@cf/qwen/qwen3-30b-a3b-fp8',
           {
             method: 'POST',
             headers: {
@@ -211,21 +307,30 @@ const server = http.createServer(async (req, res) => {
                 {
                   role: 'system',
                   content: `你是一个专业的3D图标设计顾问。用户会输入一个功能名称或概念，你需要：
-1. 理解这个概念的核心含义
-2. 将其拆解为用户指定数量的具体的、可以被3D建模的视觉元素
-3. 每个元素要具体到可以做成图标的物体（如"飞机"而不是"飞行"）
-4. 描述元素之间符合现实逻辑的空间关系（如"旁边悬浮着"、"放置在…上方"），绝对不能把不相关的元素硬融合成一个物体
-5. 给出设计思路说明
 
-核心原则：元素组合必须符合现实逻辑和物理常识。每个元素保持独立完整的外形，通过空间位置关系（旁边、上方、环绕等）来表达概念关联，而不是物理融合。
-错误示例：把时钟嵌入无人机机身里 → 变成"带表盘的无人机"
+第一步：完整理解输入含义
+- 先把输入当作一个完整的概念来理解，不要拆字
+- 例如："无人机飞手" = 操控无人机的飞行员，不是"无人机"+"手"
+- 例如："飞行里程数" = 飞行距离统计，不是"飞行"+"里程"+"数"
+- 如果是专业术语或复合词，保持其完整语义
+
+第二步：拆解为视觉元素
+- 将理解后的概念拆解为用户指定数量的具体的、可3D建模的视觉元素
+- 每个元素要具体到可以做成图标的物体（如"遥控器"而不是"控制"）
+
+第三步：描述空间关系
+- 元素之间必须符合现实逻辑的空间布局
+- 每个元素保持独立完整外形，通过空间位置（旁边、上方、环绕等）表达关联
+- 绝对不能把不相关的元素物理融合成一个奇怪的物体
+
+错误示例：把时钟嵌入无人机机身 → "带表盘的无人机"
 正确示例：无人机悬浮在空中，旁边有一个独立的时钟
 
-严格按以下JSON格式输出，不要输出其他内容：
+严格按以下JSON格式输出，不要输出其他内容，不要输出思考过程：
 {
-  "elements": ["元素1", "元素2", "元素3"],
-  "layout": "用一句话描述元素之间的空间布局关系",
-  "reasoning": "简要说明为什么这样拆解",
+  "elements": ["元素1", "元素2"],
+  "layout": "一句话描述元素之间的空间布局",
+  "reasoning": "简要说明设计思路",
   "subject": "一句话描述图标主体场景"
 }`
                 },
@@ -236,7 +341,10 @@ const server = http.createServer(async (req, res) => {
         )
 
         const aiData = await aiRes.json()
-        const text = aiData.result?.response || ''
+        // Support both Workers AI formats: result.response (legacy) and choices[0].message.content (OpenAI-compat)
+        let text = aiData.result?.response || aiData.result?.choices?.[0]?.message?.content || ''
+        // Strip thinking tags from Qwen3
+        text = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
 
         // Parse JSON from response
         let parsed
@@ -328,6 +436,96 @@ const server = http.createServer(async (req, res) => {
     writeJSON('history.json', [])
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true }))
+    return
+  }
+
+  // 生图历史 - 获取
+  if (req.method === 'GET' && req.url === '/api/gen-history') {
+    const h = readJSON('gen-history.json', [])
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(h))
+    return
+  }
+
+  // 生图历史 - 保存
+  if (req.method === 'POST' && req.url === '/api/gen-history') {
+    let body = ''
+    req.on('data', c => body += c)
+    req.on('end', () => {
+      try {
+        const entry = JSON.parse(body)
+        const h = readJSON('gen-history.json', [])
+        h.unshift(entry)
+        if (h.length > 100) h.length = 100
+        writeJSON('gen-history.json', h)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true }))
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: e.message }))
+      }
+    })
+    return
+  }
+
+  // 生图历史 - 清空
+  if (req.method === 'DELETE' && req.url === '/api/gen-history') {
+    writeJSON('gen-history.json', [])
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true }))
+    return
+  }
+
+  // 即梦AI - 提交生图任务
+  if (req.method === 'POST' && req.url === '/api/generate') {
+    let body = ''
+    req.on('data', c => body += c)
+    req.on('end', async () => {
+      try {
+        const { prompt, width, height } = JSON.parse(body)
+        if (!prompt) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: '请提供提示词' })); return }
+        const result = await jimengSubmit(prompt, { width: width || 1024, height: height || 1024 })
+        if (result.code === 10000 && result.data?.task_id) {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ task_id: result.data.task_id }))
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: result.message || '提交失败', code: result.code }))
+        }
+      } catch (e) {
+        console.error('Generate error:', e)
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: '生图请求失败: ' + e.message }))
+      }
+    })
+    return
+  }
+
+  // 即梦AI - 查询生图结果
+  if (req.method === 'POST' && req.url === '/api/generate/result') {
+    let body = ''
+    req.on('data', c => body += c)
+    req.on('end', async () => {
+      try {
+        const { task_id } = JSON.parse(body)
+        if (!task_id) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: '请提供task_id' })); return }
+        const result = await jimengQuery(task_id)
+        if (result.code === 10000) {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({
+            status: result.data?.status || 'unknown',
+            images: result.data?.image_urls || [],
+          }))
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: result.message || '查询失败', code: result.code }))
+        }
+      } catch (e) {
+        console.error('Generate result error:', e)
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: '查询失败: ' + e.message }))
+      }
+    })
     return
   }
 
