@@ -1,5 +1,5 @@
 import { copyToClipboard } from '@/lib/clipboard'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -211,9 +211,15 @@ export default function Analyzer() {
   const [elementCount, setElementCount] = useState(2)
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [history, setHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('pico_analyze_history') || '[]') } catch { return [] }
-  })
+  const [history, setHistory] = useState([])
+
+  // 加载历史
+  useEffect(() => {
+    const API = import.meta.env.VITE_COLLECT_API || 'https://api.shengtu.uk'
+    fetch(`${API}/api/history`).then(r => r.json()).then(setHistory).catch(() => {
+      try { setHistory(JSON.parse(localStorage.getItem('pico_analyze_history') || '[]')) } catch {}
+    })
+  }, [])
   // batch
   const [batchInput, setBatchInput] = useState('')
   const [batchResults, setBatchResults] = useState([])
@@ -248,20 +254,18 @@ export default function Analyzer() {
         prompt,
       }
       setResult(newResult)
-      // 保存历史
-      const entry = { id: Date.now(), title: title.trim(), prompt, elements: ai.elements, time: new Date().toLocaleString('zh-CN') }
-      const newHistory = [entry, ...history].slice(0, 50)
-      setHistory(newHistory)
-      localStorage.setItem('pico_analyze_history', JSON.stringify(newHistory))
+      // 保存历史到后端
+      const entry = { title: title.trim(), prompt, elements: ai.elements, time: new Date().toLocaleString('zh-CN') }
+      fetch(`${API_BASE}/api/history`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry) }).catch(() => {})
+      setHistory(prev => [{ ...entry, id: Date.now() }, ...prev].slice(0, 200))
     } catch (e) {
       // AI 失败时 fallback 到本地分析
       console.warn('AI analyze failed, fallback:', e)
       const fallback = analyzeText(title, desc, primaryColor, accentColors, texture)
       setResult(fallback)
-      const entry = { id: Date.now(), title: title.trim(), prompt: fallback.prompt, elements: fallback.elements, time: new Date().toLocaleString('zh-CN') }
-      const newHistory = [entry, ...history].slice(0, 50)
-      setHistory(newHistory)
-      localStorage.setItem('pico_analyze_history', JSON.stringify(newHistory))
+      const entry = { title: title.trim(), prompt: fallback.prompt, elements: fallback.elements, time: new Date().toLocaleString('zh-CN') }
+      fetch(`${API_BASE}/api/history`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry) }).catch(() => {})
+      setHistory(prev => [{ ...entry, id: Date.now() }, ...prev].slice(0, 200))
     } finally {
       setLoading(false)
     }
@@ -292,8 +296,9 @@ export default function Analyzer() {
   ]
 
   const clearHistory = () => {
+    const API = import.meta.env.VITE_COLLECT_API || 'https://api.shengtu.uk'
+    fetch(`${API}/api/history`, { method: 'DELETE' }).catch(() => {})
     setHistory([])
-    localStorage.removeItem('pico_analyze_history')
     toast.success('历史已清空')
   }
 

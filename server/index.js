@@ -1,6 +1,17 @@
 import http from 'node:http'
+import fs from 'node:fs'
+import path from 'node:path'
 
 const PORT = 3721
+const DATA_DIR = path.join(import.meta.dirname || '.', 'data')
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+
+function readJSON(file, fallback = []) {
+  try { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, file), 'utf-8')) } catch { return fallback }
+}
+function writeJSON(file, data) {
+  fs.writeFileSync(path.join(DATA_DIR, file), JSON.stringify(data, null, 2))
+}
 const CDP_URL = 'http://127.0.0.1:18800'
 
 // Use CDP to open a page in the existing logged-in browser and extract note data
@@ -132,7 +143,7 @@ function parseText(text) {
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
@@ -274,6 +285,43 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       res.writeHead(500); res.end('proxy failed')
     }
+    return
+  }
+
+  // 历史记录 - 获取
+  if (req.method === 'GET' && req.url === '/api/history') {
+    const history = readJSON('history.json', [])
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(history))
+    return
+  }
+
+  // 历史记录 - 保存
+  if (req.method === 'POST' && req.url === '/api/history') {
+    let body = ''
+    req.on('data', c => body += c)
+    req.on('end', () => {
+      try {
+        const entry = JSON.parse(body)
+        const history = readJSON('history.json', [])
+        history.unshift({ ...entry, id: Date.now() })
+        if (history.length > 200) history.length = 200
+        writeJSON('history.json', history)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true }))
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: e.message }))
+      }
+    })
+    return
+  }
+
+  // 历史记录 - 清空
+  if (req.method === 'DELETE' && req.url === '/api/history') {
+    writeJSON('history.json', [])
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true }))
     return
   }
 
