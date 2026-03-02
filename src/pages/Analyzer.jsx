@@ -11,33 +11,39 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Sparkles, Copy, Dna, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 
-const ELEMENT_MAP = {
-  '云': ['云朵', '服务器', '上传箭头', '数据流'],
-  '安全': ['盾牌', '锁', '钥匙', '指纹'],
-  '数据': ['图表', '仪表盘', '数据流', '柱状图'],
-  'AI': ['大脑', '芯片', '神经网络', '机器人'],
-  '设置': ['齿轮', '滑块', '扳手', '控制面板'],
-  '通信': ['信封', '气泡', '电话', '铃铛'],
-  '支付': ['钱包', '信用卡', '金币', '二维码'],
-  '用户': ['头像', '人形', '团队', '徽章'],
-  '文件': ['文档', '文件夹', '笔', '书签'],
-  '搜索': ['放大镜', '雷达', '望远镜', '指南针'],
-  '音乐': ['音符', '耳机', '扬声器', '均衡器'],
-  '视频': ['播放按钮', '胶片', '摄像机', '屏幕'],
-  '购物': ['购物车', '标签', '礼盒', '商店'],
-  '位置': ['定位标记', '地图', '罗盘', '路线'],
-  '时间': ['时钟', '沙漏', '日历', '秒表'],
-  '医疗': ['十字标志', '药丸', '心跳线', '听诊器'],
-  '教育': ['书本', '毕业帽', '黑板', '灯泡'],
-  '天气': ['太阳', '云彩', '雨滴', '闪电'],
-  '游戏': ['手柄', '奖杯', '骰子', '宝箱'],
-  '社交': ['点赞', '分享', '评论', '关注'],
-  '电商': ['标签', '折扣', '快递箱', '商品'],
-  '金融': ['银行', '走势图', '保险箱', '计算器'],
-  '运动': ['跑鞋', '奖牌', '篮球', '哑铃'],
-  '美食': ['餐盘', '厨师帽', '叉勺', '食材'],
-  '旅行': ['行李箱', '飞机', '护照', '地球仪'],
-}
+// 语义分类: triggers(触发词) → elements(推荐元素) + label(显示名)
+const SEMANTIC_CATEGORIES = [
+  { label: '云服务', triggers: ['云', 'cloud', '存储', '上传', '下载', '同步', '备份', '服务器', 'saas'], elements: ['云朵', '服务器', '上传箭头', '数据流'] },
+  { label: '安全/信任', triggers: ['安全', '信赖', '信任', '可靠', '保障', '防护', '认证', '权限', '隐私', '合规', 'trust', 'security', '保护', '放心'], elements: ['盾牌', '锁', '勋章', '握手'] },
+  { label: '数据', triggers: ['数据', '统计', '分析', '报表', '监控', '指标', 'data', 'analytics', '洞察', '趋势'], elements: ['图表', '仪表盘', '数据流', '柱状图'] },
+  { label: 'AI/智能', triggers: ['ai', '智能', '算法', '模型', '机器学习', '深度学习', '自动', '推荐', '识别', '预测'], elements: ['大脑', '芯片', '神经网络', '机器人'] },
+  { label: '设置', triggers: ['设置', '配置', '管理', '调整', '自定义', '偏好', '选项', '参数'], elements: ['齿轮', '滑块', '扳手', '控制面板'] },
+  { label: '通信', triggers: ['通信', '消息', '聊天', '通知', '邮件', '短信', '沟通', '联系', '对话', '客服'], elements: ['信封', '气泡', '电话', '铃铛'] },
+  { label: '支付/金融', triggers: ['支付', '付款', '钱', '费用', '账单', '收银', '金融', '银行', '投资', '理财', '贷款', '保险', '钱包', '交易'], elements: ['钱包', '信用卡', '金币', '走势图'] },
+  { label: '用户/团队', triggers: ['用户', '客户', '会员', '团队', '协作', '人', '社区', '伙伴', '合作', '员工', '人力', '招聘'], elements: ['头像', '人形', '团队', '握手'] },
+  { label: '文件/文档', triggers: ['文件', '文档', '合同', '报告', '笔记', '编辑', '内容', '写作', '记录'], elements: ['文档', '文件夹', '笔', '书签'] },
+  { label: '搜索/发现', triggers: ['搜索', '查找', '发现', '探索', '导航', '浏览', '检索'], elements: ['放大镜', '雷达', '望远镜', '指南针'] },
+  { label: '音乐/音频', triggers: ['音乐', '音频', '播客', '歌', '声音', '录音', '语音'], elements: ['音符', '耳机', '扬声器', '均衡器'] },
+  { label: '视频/直播', triggers: ['视频', '直播', '录像', '播放', '频道', '流媒体'], elements: ['播放按钮', '胶片', '摄像机', '屏幕'] },
+  { label: '购物/电商', triggers: ['购物', '商城', '电商', '订单', '商品', '优惠', '折扣', '促销', '物流', '快递', '配送'], elements: ['购物车', '礼盒', '快递箱', '商店'] },
+  { label: '位置/地图', triggers: ['位置', '地图', '定位', '导航', '地址', '附近', '门店'], elements: ['定位标记', '地图', '罗盘', '路线'] },
+  { label: '时间/效率', triggers: ['时间', '效率', '速度', '快速', '实时', '即时', '进度', '日程', '排期', '提醒'], elements: ['时钟', '沙漏', '闪电', '秒表'] },
+  { label: '医疗/健康', triggers: ['医疗', '健康', '体检', '诊断', '药', '病', '养生', '运动', '健身'], elements: ['十字标志', '药丸', '心跳线', '听诊器'] },
+  { label: '教育/学习', triggers: ['教育', '学习', '培训', '课程', '知识', '考试', '成长', '提升', '技能'], elements: ['书本', '毕业帽', '灯泡', '黑板'] },
+  { label: '天气/环境', triggers: ['天气', '环境', '气候', '绿色', '环保', '自然', '生态'], elements: ['太阳', '云彩', '树叶', '地球'] },
+  { label: '游戏/娱乐', triggers: ['游戏', '娱乐', '竞技', '挑战', '积分', '排行', '奖励', '成就'], elements: ['手柄', '奖杯', '骰子', '宝箱'] },
+  { label: '社交/互动', triggers: ['社交', '分享', '点赞', '评论', '关注', '互动', '动态', '朋友圈'], elements: ['点赞', '分享', '评论', '关注'] },
+  { label: '品牌/营销', triggers: ['品牌', '营销', '推广', '广告', '曝光', '传播', '口碑', '影响力', '形象'], elements: ['奖杯', '旗帜', '星星', '皇冠'] },
+  { label: '创意/设计', triggers: ['创意', '设计', '美', '风格', '视觉', '色彩', '灵感', '艺术'], elements: ['调色板', '画笔', '钻石', '魔法棒'] },
+  { label: '连接/集成', triggers: ['连接', '集成', '接口', 'api', '插件', '对接', '整合', '链接', '网络'], elements: ['链条', '插头', '拼图', '网格'] },
+  { label: '发布/上线', triggers: ['发布', '上线', '部署', '推送', '更新', '版本', '迭代'], elements: ['火箭', '旗帜', '播放按钮', '上传箭头'] },
+  { label: '成长/增长', triggers: ['成长', '增长', '提升', '上升', '进步', '扩展', '规模', '升级'], elements: ['上升箭头', '阶梯', '种子发芽', '图表'] },
+]
+
+// 兼容旧格式的映射(用于DNA等)
+const ELEMENT_MAP = Object.fromEntries(
+  SEMANTIC_CATEGORIES.map(c => [c.triggers[0], c.elements])
+)
 
 const STYLE_PRESETS = {
   '科技简约': { style: '科技', material: '磨砂质感', color: '蓝白配色', view: '等轴侧视角', bg: '纯白背景', renderer: 'Blender渲染', res: '8K分辨率', constraint: '无底座，减少细节' },
@@ -115,23 +121,56 @@ function extractDNA(prompt) {
 
 function analyzeText(title, desc, styleKey) {
   const text = `${title} ${desc}`.toLowerCase()
-  const elements = []
-  const reasons = []
-  for (const [key, vals] of Object.entries(ELEMENT_MAP)) {
-    if (text.includes(key)) {
-      elements.push(...vals.slice(0, 2))
-      reasons.push(`"${key}"相关 → ${vals.join(' / ')}`)
+  const matched = []
+
+  for (const cat of SEMANTIC_CATEGORIES) {
+    const hitTriggers = cat.triggers.filter(t => text.includes(t.toLowerCase()))
+    if (hitTriggers.length > 0) {
+      matched.push({ ...cat, hitTriggers, score: hitTriggers.length })
     }
   }
-  if (elements.length === 0) {
-    elements.push('抽象几何体', '光效粒子', '渐变球体')
-    reasons.push('未匹配到具体关键词,推荐使用抽象元素表达概念')
+
+  // 按匹配数排序,取前3个分类
+  matched.sort((a, b) => b.score - a.score)
+  const topMatches = matched.slice(0, 3)
+
+  const elements = []
+  const reasons = []
+
+  if (topMatches.length > 0) {
+    for (const m of topMatches) {
+      // 每个分类取前2个元素
+      const picks = m.elements.slice(0, 2)
+      elements.push(...picks)
+      reasons.push(`"${m.hitTriggers.join('/')}" → ${m.label}: ${picks.join(' / ')}`)
+    }
+  } else {
+    // 尝试单字拆分匹配
+    const chars = [...new Set(text.replace(/\s/g, '').split(''))]
+    for (const cat of SEMANTIC_CATEGORIES) {
+      if (chars.some(ch => cat.triggers.some(t => t.includes(ch) && ch.length > 0))) {
+        matched.push({ ...cat, hitTriggers: ['模糊匹配'], score: 0.5 })
+      }
+    }
+    if (matched.length > 0) {
+      const fuzzy = matched.slice(0, 2)
+      for (const m of fuzzy) {
+        elements.push(...m.elements.slice(0, 2))
+        reasons.push(`语义推断 → ${m.label}: ${m.elements.slice(0, 2).join(' / ')}`)
+      }
+    } else {
+      elements.push('抽象几何体', '光效粒子', '渐变球体')
+      reasons.push('未匹配到具体关键词,推荐使用抽象元素表达概念')
+    }
   }
 
-  const preset = STYLE_PRESETS[styleKey] || STYLE_PRESETS['科技简约']
-  const prompt = `${preset.style}风格3D图标，主体为${elements.join(' + ')}，${preset.material}搭配${preset.color}，${preset.view}。${preset.renderer}，${preset.res}，${preset.bg}，${preset.constraint}。`
+  // 去重
+  const uniqueElements = [...new Set(elements)].slice(0, 4)
 
-  return { elements, reasons, prompt, styleName: styleKey || '科技简约' }
+  const preset = STYLE_PRESETS[styleKey] || STYLE_PRESETS['科技简约']
+  const prompt = `${preset.style}风格3D图标，主体为${uniqueElements.join(' + ')}，${preset.material}搭配${preset.color}，${preset.view}。${preset.renderer}，${preset.res}，${preset.bg}，${preset.constraint}。`
+
+  return { elements: uniqueElements, reasons, prompt, styleName: styleKey || '科技简约' }
 }
 
 export default function Analyzer() {
