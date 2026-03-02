@@ -72,7 +72,7 @@ document.getElementById('btn-copy').addEventListener('click', async () => {
 document.getElementById('btn-send').addEventListener('click', async () => {
   if (!noteData) return;
 
-  // Find PromptForge tab and send data via message
+  // Find Pico tab and send data via message
   const tabs = await chrome.tabs.query({});
   const pfTab = tabs.find(t => t.url && (t.url.includes('localhost') || t.url.includes('promptforge')));
 
@@ -84,9 +84,9 @@ document.getElementById('btn-send').addEventListener('click', async () => {
       },
       args: [noteData],
     });
-    showToast('已发送到 PromptForge ✓');
+    showToast('已发送到 Pico ✓');
   } else {
-    showToast('未找到 PromptForge 页面，请先打开', 2500);
+    showToast('未找到 Pico 页面，请先打开', 2500);
   }
 });
 

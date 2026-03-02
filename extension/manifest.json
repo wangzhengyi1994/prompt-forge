@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "PromptForge 小红书采集",
+  "name": "Pico 小红书采集",
   "version": "1.0.0",
-  "description": "从小红书笔记页面一键采集内容到 PromptForge",
+  "description": "从小红书笔记页面一键采集内容到 Pico",
   "permissions": ["activeTab", "scripting"],
   "action": {
     "default_popup": "popup.html",
