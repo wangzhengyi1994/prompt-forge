@@ -38,7 +38,10 @@ const BOTTOM_NAV = NAV.slice(0, 4)
 const MORE_NAV = NAV.slice(4)
 
 export default function App() {
-  const [dark, setDark] = useState(true)
+  const [dark, setDark] = useState(() => {
+    const saved = localStorage.getItem('pico_theme')
+    return saved !== null ? saved === 'dark' : true
+  })
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -108,11 +111,11 @@ export default function App() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <header className="h-14 border-b border-border flex items-center px-4 md:px-6 justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-base text-white md:hidden">Pico</span>
+              <span className="font-bold text-base text-foreground md:hidden">Pico</span>
               <h1 className="text-sm text-muted-foreground hidden md:block">AI 图标提示词工具</h1>
             </div>
             <kbd className="hidden md:inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-mono cursor-pointer select-none" onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}>⌘K</kbd>
-            <Button variant="ghost" size="icon" onClick={() => setDark(!dark)}>
+            <Button variant="ghost" size="icon" onClick={() => { const next = !dark; setDark(next); localStorage.setItem('pico_theme', next ? 'dark' : 'light'); document.documentElement.classList.add('transitioning'); setTimeout(() => document.documentElement.classList.remove('transitioning'), 300) }}>
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
           </header>
@@ -141,7 +144,7 @@ export default function App() {
           <div className="bg-background border-t border-border px-2 pt-2 pb-1 grid grid-cols-4 gap-1">
             {MORE_NAV.map(n => (
               <NavLink key={n.path} to={n.path} className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 py-2 rounded-lg text-xs transition-colors ${isActive ? 'text-blue-400 bg-accent' : 'text-muted-foreground'}`
+                `flex flex-col items-center gap-0.5 py-2 rounded-lg text-xs transition-colors ${isActive ? 'text-blue-500 dark:text-blue-400 bg-accent' : 'text-muted-foreground'}`
               }>
                 <n.icon className="h-4 w-4" />
                 <span>{n.label}</span>
@@ -152,7 +155,7 @@ export default function App() {
         <nav className="bg-background/95 backdrop-blur-md border-t border-border flex items-stretch safe-bottom">
           {BOTTOM_NAV.map(n => (
             <NavLink key={n.path} to={n.path} className={({ isActive }) =>
-              `flex-1 flex flex-col items-center gap-0.5 py-2 pt-2.5 text-xs transition-colors ${isActive ? 'text-blue-400' : 'text-muted-foreground'}`
+              `flex-1 flex flex-col items-center gap-0.5 py-2 pt-2.5 text-xs transition-colors ${isActive ? 'text-blue-500 dark:text-blue-400' : 'text-muted-foreground'}`
             }>
               <n.icon className="h-5 w-5" />
               <span>{n.label}</span>
@@ -160,7 +163,7 @@ export default function App() {
           ))}
           <button
             onClick={() => setMoreOpen(!moreOpen)}
-            className={`flex-1 flex flex-col items-center gap-0.5 py-2 pt-2.5 text-xs transition-colors ${isMoreActive || moreOpen ? 'text-blue-400' : 'text-muted-foreground'}`}
+            className={`flex-1 flex flex-col items-center gap-0.5 py-2 pt-2.5 text-xs transition-colors ${isMoreActive || moreOpen ? 'text-blue-500 dark:text-blue-400' : 'text-muted-foreground'}`}
           >
             <MoreHorizontal className="h-5 w-5" />
             <span>更多</span>
