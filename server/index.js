@@ -180,12 +180,12 @@ const server = http.createServer(async (req, res) => {
     req.on('data', c => body += c)
     req.on('end', async () => {
       try {
-        const { title, desc } = JSON.parse(body)
+        const { title, desc, count = 3 } = JSON.parse(body)
         if (!title) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: '请提供标题' })); return }
 
         const prompt = desc
-          ? `概念: "${title}"\n描述: "${desc}"`
-          : `概念: "${title}"`
+          ? `概念: "${title}"\n描述: "${desc}"\n要求拆解为${count}个元素`
+          : `概念: "${title}"\n要求拆解为${count}个元素`
 
         const aiRes = await fetch(
           'https://api.cloudflare.com/client/v4/accounts/123a93e0eb008d56cf542e2605401162/ai/run/@cf/meta/llama-3.1-8b-instruct',
@@ -201,7 +201,7 @@ const server = http.createServer(async (req, res) => {
                   role: 'system',
                   content: `你是一个专业的3D图标设计顾问。用户会输入一个功能名称或概念，你需要：
 1. 理解这个概念的核心含义
-2. 将其拆解为2-4个具体的、可以被3D建模的视觉元素
+2. 将其拆解为用户指定数量的具体的、可以被3D建模的视觉元素
 3. 每个元素要具体到可以做成图标的物体（如"飞机"而不是"飞行"）
 4. 给出设计思路说明
 

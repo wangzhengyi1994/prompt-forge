@@ -208,6 +208,7 @@ export default function Analyzer() {
   const [primaryColor, setPrimaryColor] = useState('白色')
   const [accentColors, setAccentColors] = useState(['蓝色'])
   const [texture, setTexture] = useState('磨砂质感')
+  const [elementCount, setElementCount] = useState(3)
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   // batch
@@ -227,7 +228,7 @@ export default function Analyzer() {
       const res = await fetch(`${API_BASE}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), desc: desc.trim() }),
+        body: JSON.stringify({ title: title.trim(), desc: desc.trim(), count: elementCount }),
       })
       const ai = await res.json()
       if (ai.error) throw new Error(ai.error)
@@ -323,6 +324,17 @@ export default function Analyzer() {
                     <button key={t.value} onClick={() => setTexture(t.value)}
                       className={`px-3 py-1.5 rounded-lg text-sm transition-all ${texture === t.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
                       {t.icon} {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-2 block">元素数量</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button key={n} onClick={() => setElementCount(n)}
+                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${elementCount === n ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}>
+                      {n}
                     </button>
                   ))}
                 </div>
