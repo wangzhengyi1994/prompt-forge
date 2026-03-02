@@ -156,58 +156,50 @@ function extractDNA(prompt) {
 
 function analyzeText(title, desc, primaryColor = '白色', accentColors = ['蓝色'], texture = '磨砂质感') {
   const text = `${title} ${desc}`.toLowerCase()
-  const matched = []
 
+  // 第一步: 标题就是核心主体,直接作为图标主题
+  const subject = title.trim()
+
+  // 第二步: 从语义分类中找辅助元素(只做补充,不替代主体)
+  const matched = []
   for (const cat of SEMANTIC_CATEGORIES) {
-    const hitTriggers = cat.triggers.filter(t => text.includes(t.toLowerCase()))
+    // 只匹配2字以上的触发词,避免单字误匹配(如"人"匹配"无人机")
+    const hitTriggers = cat.triggers.filter(t => t.length >= 2 && text.includes(t.toLowerCase()))
     if (hitTriggers.length > 0) {
       matched.push({ ...cat, hitTriggers, score: hitTriggers.length })
     }
   }
-
-  // 按匹配数排序,取前3个分类
   matched.sort((a, b) => b.score - a.score)
-  const topMatches = matched.slice(0, 3)
 
-  const elements = []
   const reasons = []
+  const supplementary = []
 
-  if (topMatches.length > 0) {
-    for (const m of topMatches) {
-      // 每个分类取前2个元素
+  // 分析思路: 解释为什么这样理解标题
+  reasons.push(`核心主体: "${subject}" → 直接作为图标的视觉主题`)
+
+  if (matched.length > 0) {
+    const top = matched.slice(0, 2)
+    for (const m of top) {
       const picks = m.elements.slice(0, 2)
-      elements.push(...picks)
-      reasons.push(`"${m.hitTriggers.join('/')}" → ${m.label}: ${picks.join(' / ')}`)
-    }
-  } else {
-    // 尝试单字拆分匹配
-    const chars = [...new Set(text.replace(/\s/g, '').split(''))]
-    for (const cat of SEMANTIC_CATEGORIES) {
-      if (chars.some(ch => cat.triggers.some(t => t.includes(ch) && ch.length > 0))) {
-        matched.push({ ...cat, hitTriggers: ['模糊匹配'], score: 0.5 })
-      }
-    }
-    if (matched.length > 0) {
-      const fuzzy = matched.slice(0, 2)
-      for (const m of fuzzy) {
-        elements.push(...m.elements.slice(0, 2))
-        reasons.push(`语义推断 → ${m.label}: ${m.elements.slice(0, 2).join(' / ')}`)
-      }
-    } else {
-      elements.push('抽象几何体', '光效粒子', '渐变球体')
-      reasons.push('未匹配到具体关键词,推荐使用抽象元素表达概念')
+      supplementary.push(...picks)
+      reasons.push(`辅助元素: "${m.hitTriggers.join('/')}" → ${m.label}: ${picks.join(' / ')}`)
     }
   }
 
-  // 去重
-  const uniqueElements = [...new Set(elements)].slice(0, 4)
+  // 构建元素列表: 主体 + 辅助(去重)
+  const elements = [subject, ...supplementary.filter(s => !subject.includes(s))].slice(0, 4)
 
   const colorDesc = accentColors.length > 0
     ? `${primaryColor}为主色调搭配${accentColors.join('+')}点缀`
     : `${primaryColor}为主色调`
-  const prompt = `3D图标，主体为${uniqueElements.join(' + ')}，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座，减少细节。`
 
-  return { elements: uniqueElements, reasons, prompt }
+  // 生成提示词: 主体用标题原文,辅助元素点缀
+  const subjectPart = supplementary.length > 0
+    ? `${subject}，搭配${supplementary.slice(0, 2).join('和')}元素`
+    : subject
+  const prompt = `3D图标，主体为${subjectPart}，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座，减少细节。`
+
+  return { elements, reasons, prompt }
 }
 
 export default function Analyzer() {
