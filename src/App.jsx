@@ -1,17 +1,26 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from '@/components/ui/sonner'
-import { Library as LibraryIcon, Download, Wrench, FileText, BookOpen, Languages, Sparkles, Dna, Menu, Sun, Moon, PanelLeftClose, X, MoreHorizontal } from 'lucide-react'
+import { Library as LibraryIcon, Download, Wrench, FileText, BookOpen, Languages, Sparkles, Dna, Menu, Sun, Moon, PanelLeftClose, X, MoreHorizontal, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import Library from '@/pages/Library'
-import Collect from '@/pages/Collect'
-import PromptBuilder from '@/pages/PromptBuilder'
-import Analyzer from '@/pages/Analyzer'
-import Dictionary from '@/pages/Dictionary'
-import Translator from '@/pages/Translator'
-import Scorer from '@/pages/Scorer'
-import StyleDNA from '@/pages/StyleDNA'
 import CommandPalette from '@/components/CommandPalette'
+
+const Library = lazy(() => import('@/pages/Library'))
+const Collect = lazy(() => import('@/pages/Collect'))
+const PromptBuilder = lazy(() => import('@/pages/PromptBuilder'))
+const Analyzer = lazy(() => import('@/pages/Analyzer'))
+const Dictionary = lazy(() => import('@/pages/Dictionary'))
+const Translator = lazy(() => import('@/pages/Translator'))
+const Scorer = lazy(() => import('@/pages/Scorer'))
+const StyleDNA = lazy(() => import('@/pages/StyleDNA'))
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-48">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  )
+}
 
 const NAV = [
   { path: '/library', label: '素材库', icon: LibraryIcon },
@@ -108,17 +117,19 @@ export default function App() {
             </Button>
           </header>
           <main className="flex-1 overflow-auto p-3 md:p-6 pb-20 md:pb-6">
-            <Routes>
-              <Route path="/" element={<Navigate to="/library" replace />} />
-              <Route path="/library" element={<Library />} />
-              <Route path="/collect" element={<Collect />} />
-              <Route path="/builder" element={<PromptBuilder />} />
-              <Route path="/analyzer" element={<Analyzer />} />
-              <Route path="/dictionary" element={<Dictionary />} />
-              <Route path="/translator" element={<Translator />} />
-              <Route path="/scorer" element={<Scorer />} />
-              <Route path="/style-dna" element={<StyleDNA />} />
-            </Routes>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<Navigate to="/library" replace />} />
+                <Route path="/library" element={<Library />} />
+                <Route path="/collect" element={<Collect />} />
+                <Route path="/builder" element={<PromptBuilder />} />
+                <Route path="/analyzer" element={<Analyzer />} />
+                <Route path="/dictionary" element={<Dictionary />} />
+                <Route path="/translator" element={<Translator />} />
+                <Route path="/scorer" element={<Scorer />} />
+                <Route path="/style-dna" element={<StyleDNA />} />
+              </Routes>
+            </Suspense>
           </main>
         </div>
       </div>
