@@ -61,7 +61,17 @@ export default function Collect() {
       if (!resp.ok) { toast.error(data.error || '采集失败'); return }
       if (data._error) { toast.error(data._error); return }
       setUrlResult(data)
-      toast.success('采集成功')
+      // Auto save to library
+      addToLibrary({
+        title: data.title || '未命名',
+        prompt: data.content || '',
+        tags: data.tags || [],
+        source: data.source || '小红书',
+        structure: '自动采集',
+        template: data.content || '',
+        thumbnail: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
+      })
+      toast.success('采集成功，已自动保存到素材库')
     } catch (err) {
       toast.error('请求失败: ' + err.message)
     } finally {
