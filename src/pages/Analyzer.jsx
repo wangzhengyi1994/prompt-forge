@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+// Select removed
 import { Loader2, Sparkles, Copy, Dna, Zap, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -215,15 +215,12 @@ export default function Analyzer() {
     }, 600)
   }
 
-  const [batchStyle, setBatchStyle] = useState('科技简约')
-
   const batchAnalyze = () => {
     const lines = batchInput.trim().split('\n').filter(Boolean)
     if (!lines.length) { toast.error('请输入内容'); return }
     const results = lines.map(line => {
       const [t, d = ''] = line.split('|')
-      const analysis = analyzeText(t, d)
-      return { title: t.trim(), ...analysis, prompt: buildPromptWithStyle(analysis.elements, batchStyle) }
+      return { title: t.trim(), ...analyzeText(t, d, primaryColor, accentColors) }
     })
     setBatchResults(results)
     toast.success(`已分析 ${results.length} 条`)
@@ -319,18 +316,9 @@ export default function Analyzer() {
                 </div>
                 <Separator />
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs text-muted-foreground">建议提示词</div>
-                    <div className="flex gap-1 flex-wrap">
-                      {Object.keys(STYLE_PRESETS).map(k => (
-                        <Badge key={k} variant={k === styleKey ? 'default' : 'outline'} className={`text-xs cursor-pointer ${k === styleKey ? '' : 'hover:bg-accent'}`} onClick={() => setStyleKey(k)}>
-                          {k}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="bg-muted p-3 rounded-md text-sm">{buildPromptWithStyle(result.elements, styleKey)}</div>
-                  <Button variant="ghost" size="sm" className="mt-1" onClick={() => copyText(buildPromptWithStyle(result.elements, styleKey))}>
+                  <div className="text-xs text-muted-foreground mb-1">建议提示词</div>
+                  <div className="bg-muted p-3 rounded-md text-sm">{result.prompt}</div>
+                  <Button variant="ghost" size="sm" className="mt-1" onClick={() => copyText(result.prompt)}>
                     <Copy className="h-3 w-3 mr-1" />复制
                   </Button>
                 </div>
@@ -346,18 +334,7 @@ export default function Analyzer() {
                 <label className="text-xs text-muted-foreground">批量输入(每行一条,格式: 标题|描述)</label>
                 <Textarea value={batchInput} onChange={e => setBatchInput(e.target.value)} placeholder={'云存储管理|管理云端文件和备份\nAI智能客服|基于AI的自动客服系统\n安全中心|账户安全和隐私设置'} rows={6} />
               </div>
-              <div className="flex gap-2 items-end">
-                <div className="flex-1">
-                  <label className="text-xs text-muted-foreground">目标风格</label>
-                  <Select value={batchStyle} onValueChange={setBatchStyle}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Object.keys(STYLE_PRESETS).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={batchAnalyze}><Sparkles className="h-4 w-4 mr-1" />批量分析</Button>
-              </div>
+              <Button onClick={batchAnalyze}><Sparkles className="h-4 w-4 mr-1" />批量分析</Button>
             </CardContent>
           </Card>
 
