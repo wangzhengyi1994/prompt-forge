@@ -311,12 +311,12 @@ export default function Analyzer() {
               </div>
               <Separator />
               <div>
-                <label className="text-sm font-medium text-muted-foreground">功能标题</label>
-                <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="如：云存储管理" />
+                <label className="text-sm font-medium text-muted-foreground mb-1.5 block">功能标题</label>
+                <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="如：云存储管理" className="h-11" />
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">功能描述</label>
-                <Textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="描述该功能的用途..." rows={3} />
+                <label className="text-sm font-medium text-muted-foreground mb-1.5 block">功能描述</label>
+                <Textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="描述该功能的用途..." rows={4} className="min-h-[120px]" />
               </div>
               <Button onClick={analyze} disabled={loading}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
