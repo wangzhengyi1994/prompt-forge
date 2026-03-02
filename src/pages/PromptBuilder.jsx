@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Copy, ChevronDown, RotateCcw, Sparkles, CheckCircle, AlertTriangle, BookmarkPlus, Check, Eye, EyeOff } from 'lucide-react'
+import { Copy, ChevronDown, RotateCcw, Sparkles, CheckCircle, AlertTriangle, BookmarkPlus, Check, Eye, EyeOff, Shuffle } from 'lucide-react'
 import { toast } from 'sonner'
 import { addToLibrary } from '@/lib/store'
 
@@ -29,6 +29,16 @@ const TEMPLATES = [
   { name: '水晶宝石', values: { 材质: '水晶质感', 视角: '等轴侧', 色调: '单色渐变', 背景: '纯黑', 风格: '梦幻', 细节度: '多细节', 分辨率: '16K', 渲染器: 'C4D+Redshift' } },
 ]
 
+const RANDOM_SUBJECTS = [
+  '云服务器', '数据仪表盘', '安全盾牌', '智能音箱', '火箭发射', '咖啡杯',
+  '时钟齿轮', '书本知识', '地球仪', '摄像头', '蓝牙耳机', '电池充电',
+  '邮件信封', '音乐播放器', '日历日程', '相机镜头', '购物车', '小狗',
+  '樱花树', '星球宇宙', '灯泡创意', '调色盘', '文件夹', '游戏手柄',
+  '望远镜', '指南针', '温度计', '钻石宝石', '心形锁', '魔法药水',
+  '机器人', '像素小鸡', '沙漏时间', '热气球', '水晶球', '雪花',
+  '太阳花', '彩虹桥', '棒棒糖', '独角兽', '宇航员头盔', '海洋珊瑚',
+]
+
 // Mini scorer for real-time quality check
 const DIMENSIONS = [
   { name: '主体', check: (t) => ['图标','icon','主体','一个','一只','一朵','场景','角色'].some(w => t.toLowerCase().includes(w)) || t.length > 15 },
@@ -48,6 +58,18 @@ export default function PromptBuilder() {
   const update = (key, val) => setSel(prev => ({ ...prev, [key]: val }))
   const applyTemplate = (t) => { setSel(t.values) }
   const resetAll = () => { setSel({}); setSubject(''); setExtraConstraint('') }
+
+  const randomize = () => {
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)]
+    const newSel = {}
+    Object.entries(OPTIONS).forEach(([key, opts]) => {
+      const filtered = opts.filter(o => o !== '自定义' && o !== '不指定')
+      if (filtered.length > 0) newSel[key] = pick(filtered)
+    })
+    setSel(newSel)
+    setSubject(pick(RANDOM_SUBJECTS))
+    toast.success('随机灵感已生成')
+  }
 
   const filledCount = Object.values(sel).filter(v => v && v !== '自定义' && v !== '不指定').length
 
@@ -146,6 +168,7 @@ export default function PromptBuilder() {
           </DropdownMenuContent>
         </DropdownMenu>
         <Button variant="ghost" size="sm" onClick={resetAll}><RotateCcw className="h-3 w-3 mr-1" />重置</Button>
+        <Button variant="outline" size="sm" onClick={randomize} className="gap-1"><Shuffle className="h-3 w-3" />随机灵感</Button>
         <span className="text-xs text-muted-foreground ml-auto">已填 {filledCount}/{Object.keys(OPTIONS).length} 项</span>
       </div>
 
