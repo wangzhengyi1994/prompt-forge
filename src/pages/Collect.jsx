@@ -9,7 +9,7 @@ import { addToLibrary } from '@/lib/store'
 import { Loader2, Download, Save, Plus, X, Plug, ClipboardPaste, FileText, Link } from 'lucide-react'
 import { toast } from 'sonner'
 
-const API_BASE = import.meta.env.VITE_COLLECT_API || 'https://featuring-expensive-phys-choice.trycloudflare.com'
+const API_BASE = import.meta.env.VITE_COLLECT_API || 'https://organization-text-reprints-convertible.trycloudflare.com'
 function getApiBase() { return API_BASE }
 function proxyImg(src) {
   if (!src) return src
