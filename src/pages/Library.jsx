@@ -1,5 +1,6 @@
 import { copyToClipboard } from '@/lib/clipboard'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getLibrary, deleteFromLibrary, saveLibrary, exportLibrary, importLibrary } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { Grid3X3, List, Search, Trash2, Copy, Check, Pencil, X, Tag, Layers, FileText, LayoutTemplate, Plus, Download, Upload, ExternalLink } from 'lucide-react'
+import { Grid3X3, List, Search, Trash2, Copy, Check, Pencil, X, Tag, Layers, FileText, LayoutTemplate, Plus, Download, Upload, ExternalLink, BarChart3, ChevronDown, ChevronUp, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 
 const TABS = [
@@ -17,7 +18,68 @@ const TABS = [
   { key: 'template', label: '模板', icon: LayoutTemplate },
 ]
 
-function DetailDialog({ item, onClose, onDelete, onUpdate }) {
+function StatsBar({ items }) {
+  const [expanded, setExpanded] = useState(false)
+
+  const stats = useMemo(() => {
+    const tagMap = {}
+    const sourceMap = {}
+    items.forEach(item => {
+      item.tags?.forEach(t => { tagMap[t] = (tagMap[t] || 0) + 1 })
+      if (item.source) sourceMap[item.source] = (sourceMap[item.source] || 0) + 1
+    })
+    const topTags = Object.entries(tagMap).sort((a, b) => b[1] - a[1]).slice(0, 8)
+    const sources = Object.entries(sourceMap).sort((a, b) => b[1] - a[1])
+    return { total: items.length, topTags, sources, tagCount: Object.keys(tagMap).length }
+  }, [items])
+
+  if (stats.total === 0) return null
+
+  return (
+    <Card className="overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-accent/50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium">{stats.total} 条素材</span>
+          <span className="text-muted-foreground">{stats.tagCount} 个标签</span>
+          <span className="text-muted-foreground">{stats.sources.length} 个来源</span>
+        </div>
+        {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+      </button>
+      {expanded && (
+        <CardContent className="px-4 pb-4 pt-0 space-y-3 border-t border-border">
+          <div className="pt-3">
+            <div className="text-xs text-muted-foreground mb-2">热门标签</div>
+            <div className="flex flex-wrap gap-1.5">
+              {stats.topTags.map(([tag, count]) => (
+                <Badge key={tag} variant="secondary" className="text-xs gap-1">
+                  {tag} <span className="text-muted-foreground">{count}</span>
+                </Badge>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground mb-2">来源分布</div>
+            <div className="flex flex-wrap gap-3">
+              {stats.sources.map(([source, count]) => (
+                <div key={source} className="flex items-center gap-1.5 text-xs">
+                  <div className="h-2 w-2 rounded-full bg-blue-500" />
+                  <span>{source}</span>
+                  <span className="text-muted-foreground">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  )
+}
+
+function DetailDialog({ item, onClose, onDelete, onUpdate, onGoBuilder }) {
   const [tab, setTab] = useState('prompt')
   const [copied, setCopied] = useState(null)
   const [editingTags, setEditingTags] = useState(false)
@@ -221,7 +283,15 @@ function DetailDialog({ item, onClose, onDelete, onUpdate }) {
           <Separator />
 
           {/* Footer */}
-          <div className="flex justify-end">
+          <div className="flex justify-between">
+            <Button variant="outline" size="sm" onClick={() => {
+              copyToClipboard(item.prompt)
+              toast.success('提示词已复制')
+              onClose()
+              onGoBuilder?.()
+            }}>
+              <Wrench className="h-3 w-3 mr-1" />复制并去组装器
+            </Button>
             <Button variant="destructive" size="sm" onClick={() => onDelete(item.id)}>
               <Trash2 className="h-3 w-3 mr-1" />删除
             </Button>
@@ -254,6 +324,7 @@ export default function Library() {
   const [view, setView] = useState('grid')
   const [selected, setSelected] = useState(null)
   const fileInputRef = useState(null)
+  const navigate = useNavigate()
 
   useEffect(() => { setItems(getLibrary()) }, [])
 
@@ -295,6 +366,7 @@ export default function Library() {
 
   return (
     <div className="space-y-4">
+      <StatsBar items={items} />
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -386,6 +458,7 @@ export default function Library() {
         onClose={() => setSelected(null)}
         onDelete={handleDelete}
         onUpdate={handleUpdate}
+        onGoBuilder={() => navigate('/builder')}
       />
     </div>
   )

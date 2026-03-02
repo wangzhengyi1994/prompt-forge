@@ -246,7 +246,8 @@ export default function Analyzer() {
         ? `${primaryColor}为主色调搭配${accentColors.join('+')}点缀`
         : `${primaryColor}为主色调`
       const elementsStr = ai.elements.join(' + ')
-      const prompt = `3D图标，主体为${ai.subject || elementsStr}，包含${elementsStr}元素，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座，减少细节。`
+      const layoutDesc = ai.layout ? `，${ai.layout}` : ''
+      const prompt = `3D图标，主体为${ai.subject || elementsStr}，包含${elementsStr}元素${layoutDesc}，每个元素保持独立完整造型，${texture}，${colorDesc}，等轴侧视角。Blender渲染，8K分辨率，纯白背景，无底座，减少细节。`
 
       const newResult = {
         elements: ai.elements,
