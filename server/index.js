@@ -10,22 +10,27 @@ async function collectViaBuilder(url) {
   const targets = await targetsRes.json()
 
   // Find an existing XHS tab or create new one
-  let target = targets.find(t => t.url?.includes('xiaohongshu.com/explore') && !t.url.includes('/404'))
+  let target = targets.find(t => t.url?.includes('xiaohongshu.com') && !t.url.includes('/404'))
 
   if (!target) {
-    // Create a new tab
-    const newRes = await fetch(`${CDP_URL}/json/new?${encodeURIComponent('https://www.xiaohongshu.com/explore')}`)
+    // Create a new tab (Chrome 145+ requires PUT)
+    let newRes = await fetch(`${CDP_URL}/json/new?${encodeURIComponent('https://www.xiaohongshu.com/explore')}`, { method: 'PUT' })
+    if (!newRes.ok) {
+      // Fallback to GET for older Chrome
+      newRes = await fetch(`${CDP_URL}/json/new?${encodeURIComponent('https://www.xiaohongshu.com/explore')}`)
+    }
     target = await newRes.json()
-    await sleep(2000)
+    await sleep(3000)
   }
 
   // Connect via WebSocket
   const ws = await connectWs(target.webSocketDebuggerUrl)
 
   try {
-    // Navigate to the note URL
+    // Enable page events and navigate
+    await cdpSend(ws, 'Page.enable', {})
     await cdpSend(ws, 'Page.navigate', { url })
-    await sleep(3000)
+    await sleep(4000)
 
     // Extract data via JS evaluation
     const result = await cdpSend(ws, 'Runtime.evaluate', {
