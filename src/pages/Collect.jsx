@@ -1,52 +1,86 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { addToLibrary } from '@/lib/store'
-import { Loader2, Download, Save, Plus, X } from 'lucide-react'
+import { Loader2, Download, Save, Plus, X, Plug, ClipboardPaste, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function Collect() {
-  const [url, setUrl] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [extracted, setExtracted] = useState(null)
+  // paste collect
+  const [pasteText, setPasteText] = useState('')
+  const [pasteLoading, setPasteLoading] = useState(false)
+  const [pasteResult, setPasteResult] = useState(null)
   // manual
   const [title, setTitle] = useState('')
   const [prompt, setPrompt] = useState('')
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState([])
   const [notes, setNotes] = useState('')
+  // extension
+  const [extData, setExtData] = useState(null)
 
-  const handleCollect = () => {
-    if (!url.trim()) return
-    setLoading(true)
-    setTimeout(() => {
-      setExtracted({
-        title: '3D 磨砂质感科技图标',
-        prompt: '3D科技感图标，磨砂质感搭配蓝白渐变光效，等轴侧视角，透明玻璃材质。Blender渲染，16K分辨率，纯白背景，无底座设计。减少细节，突出科技质感。',
-        tags: ['3D', '磨砂', '科技', 'Blender'],
-        source: '小红书',
-      })
-      setLoading(false)
-      toast.success('采集成功')
-    }, 1500)
+  useEffect(() => {
+    const handler = (event) => {
+      if (event.data?.type === 'PROMPTFORGE_COLLECT' && event.data?.data) {
+        setExtData(event.data.data)
+        toast.success('收到插件采集数据')
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [])
+
+  const handlePasteCollect = async () => {
+    if (!pasteText.trim()) return
+    setPasteLoading(true)
+    try {
+      // Try local API first, fallback to client-side parsing
+      const apiBase = import.meta.env.VITE_COLLECT_API || ''
+      let data
+      try {
+        const resp = await fetch(`${apiBase}/api/collect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: pasteText.trim() }),
+        })
+        data = await resp.json()
+        if (!resp.ok) throw new Error(data.error)
+      } catch {
+        // Fallback: client-side parse
+        const lines = pasteText.trim().split('\n').filter(Boolean)
+        const tagMatches = pasteText.match(/#([^#\s]+)/g)
+        data = {
+          title: lines[0] || '',
+          content: lines.slice(1).join('\n').trim() || lines[0] || '',
+          tags: tagMatches ? tagMatches.map(t => t.replace('#', '')) : [],
+          images: [],
+          source: '小红书',
+        }
+      }
+      setPasteResult(data)
+      toast.success('解析完成')
+    } finally {
+      setPasteLoading(false)
+    }
   }
 
-  const saveExtracted = () => {
-    if (!extracted) return
+  const saveData = (data, resetFn) => {
+    if (!data) return
     addToLibrary({
-      ...extracted,
+      title: data.title || '未命名',
+      prompt: data.content || data.prompt || '',
+      tags: data.tags || [],
+      source: data.source || '采集',
       structure: '自动采集',
-      template: extracted.prompt,
+      template: data.content || data.prompt || '',
       thumbnail: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
     })
     toast.success('已保存到素材库')
-    setExtracted(null)
-    setUrl('')
+    resetFn?.()
   }
 
   const addTag = () => {
@@ -67,40 +101,103 @@ export default function Collect() {
     setTitle(''); setPrompt(''); setTags([]); setNotes('')
   }
 
+  const PreviewCard = ({ data, onSave, onClear }) => (
+    <Card>
+      <CardHeader><CardTitle className="text-base">采集结果预览</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        <div><span className="text-xs text-muted-foreground">标题</span><div className="text-sm font-medium">{data.title || '(无标题)'}</div></div>
+        <div><span className="text-xs text-muted-foreground">内容</span><div className="text-sm bg-muted p-3 rounded-md whitespace-pre-wrap max-h-48 overflow-y-auto">{data.content || data.prompt || '(无内容)'}</div></div>
+        {data.tags?.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {data.tags.map(t => <Badge key={t} variant="secondary">{t}</Badge>)}
+          </div>
+        )}
+        {data.images?.length > 0 && (
+          <div>
+            <span className="text-xs text-muted-foreground">图片 ({data.images.length})</span>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {data.images.slice(0, 6).map((img, i) => (
+                <img key={i} src={img} alt="" className="w-16 h-16 object-cover rounded border" />
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button onClick={onSave}><Save className="h-4 w-4 mr-1" />保存到素材库</Button>
+          {onClear && <Button variant="outline" onClick={onClear}>清除</Button>}
+        </div>
+      </CardContent>
+    </Card>
+  )
+
   return (
     <div className="max-w-2xl space-y-4">
-      <Tabs defaultValue="url">
+      <Tabs defaultValue="paste">
         <TabsList>
-          <TabsTrigger value="url">URL 采集</TabsTrigger>
+          <TabsTrigger value="paste">粘贴采集</TabsTrigger>
+          <TabsTrigger value="extension">插件采集</TabsTrigger>
           <TabsTrigger value="manual">手动录入</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="url" className="space-y-4">
+        <TabsContent value="paste" className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-base">粘贴链接采集</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><ClipboardPaste className="h-4 w-4" />粘贴笔记内容</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex gap-2">
-                <Input placeholder="粘贴小红书链接..." value={url} onChange={e => setUrl(e.target.value)} />
-                <Button onClick={handleCollect} disabled={loading}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
-                  {loading ? '采集中...' : '采集'}
-                </Button>
+              <div className="text-xs text-muted-foreground">
+                在小红书 App 中复制笔记文字,粘贴到下方即可解析提取提示词和标签
               </div>
+              <Textarea
+                placeholder={"粘贴小红书笔记内容...\n\n例如:\n3D磨砂质感科技图标\n3D科技感图标，磨砂质感搭配蓝白渐变光效...\n#3D #磨砂 #图标设计"}
+                value={pasteText}
+                onChange={e => setPasteText(e.target.value)}
+                rows={6}
+              />
+              <Button onClick={handlePasteCollect} disabled={pasteLoading || !pasteText.trim()}>
+                {pasteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileText className="h-4 w-4 mr-1" />}
+                {pasteLoading ? '解析中...' : '解析提取'}
+              </Button>
             </CardContent>
           </Card>
 
-          {extracted && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">采集结果预览</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <div><span className="text-xs text-muted-foreground">标题</span><div className="text-sm font-medium">{extracted.title}</div></div>
-                <div><span className="text-xs text-muted-foreground">提示词</span><div className="text-sm bg-muted p-3 rounded-md">{extracted.prompt}</div></div>
-                <div className="flex flex-wrap gap-1">
-                  {extracted.tags.map(t => <Badge key={t} variant="secondary">{t}</Badge>)}
+          {pasteResult && (
+            <PreviewCard data={pasteResult}
+              onSave={() => saveData(pasteResult, () => { setPasteResult(null); setPasteText('') })}
+              onClear={() => { setPasteResult(null); setPasteText('') }}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="extension" className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Plug className="h-4 w-4" />浏览器插件采集</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-sm text-muted-foreground space-y-2">
+                <p className="font-medium text-foreground">安装步骤:</p>
+                <ol className="list-decimal list-inside space-y-1 text-xs">
+                  <li>打开 Chrome → <code className="bg-muted px-1 rounded">chrome://extensions/</code></li>
+                  <li>开启「开发者模式」→「加载已解压的扩展程序」</li>
+                  <li>选择项目中的 <code className="bg-muted px-1 rounded">extension/</code> 文件夹</li>
+                </ol>
+                <p className="font-medium text-foreground mt-3">使用方式:</p>
+                <ol className="list-decimal list-inside space-y-1 text-xs">
+                  <li>在小红书笔记页面点击插件图标</li>
+                  <li>预览采集内容,点击「发送到 PromptForge」</li>
+                  <li>数据会自动出现在下方</li>
+                </ol>
+              </div>
+              {!extData && (
+                <div className="text-center py-6 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+                  等待插件发送数据...
                 </div>
-                <Button onClick={saveExtracted}><Save className="h-4 w-4 mr-1" />保存到素材库</Button>
-              </CardContent>
-            </Card>
+              )}
+            </CardContent>
+          </Card>
+
+          {extData && (
+            <PreviewCard data={extData}
+              onSave={() => saveData(extData, () => setExtData(null))}
+              onClear={() => setExtData(null)}
+            />
           )}
         </TabsContent>
 
